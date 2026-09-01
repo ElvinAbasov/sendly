@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -40,24 +40,31 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
+
       - name: Install SDK packages
-        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "platform-tools"
 
       - name: Build debug APK
         working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Prepare release APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Spendly.apk
 
       - name: Publish APK to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view apk 2>/dev/null || gh release create apk --title "Spendly APK" --notes "Последняя сборка для Android. Скачайте Spendly.apk."
-          gh release upload apk Spendly.apk --clobber
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk
+          name: Spendly APK
+          body: Последняя сборка Spendly для Android. Скачайте Spendly.apk.
+          files: Spendly.apk
+          draft: false
+          prerelease: false
+          overwrite_files: true
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Spendly-debug-apk
