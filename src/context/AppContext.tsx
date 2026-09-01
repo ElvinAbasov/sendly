@@ -21,6 +21,7 @@ import {
   createTransaction,
 } from '../services/dataService'
 import { shouldShowAutoDepositPrompt } from '../utils/savings'
+import { applySystemUi } from '../utils/systemUi'
 import type {
   AppSettings,
   ExportData,
@@ -273,6 +274,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme)
+    applySystemUi(settings.theme)
   }, [settings.theme])
 
   const login = async (email: string, password: string) => {
