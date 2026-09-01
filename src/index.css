@@ -2087,6 +2087,45 @@ body {
   text-decoration: underline;
 }
 
+.auth-form {
+  width: 100%;
+}
+
+.auth-page .onboarding__form {
+  width: 100%;
+  max-width: 360px;
+}
+
+.input-group--password .input-group__password-wrap {
+  position: relative;
+}
+
+.input-group--password .input {
+  padding-right: 48px;
+}
+
+.input-group__password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.input-group__password-toggle:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
 /* Skeleton */
 .skeleton {
   background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-hover) 50%, var(--bg-secondary) 75%);

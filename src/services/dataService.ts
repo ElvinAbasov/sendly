@@ -8,7 +8,7 @@ import type {
   Transaction,
   User,
 } from '../types'
-import { hashPassword, verifyPassword } from '../utils/auth'
+import { hashPassword, isPasswordHash, normalizeEmail, verifyPassword } from '../utils/auth'
 import { generateId } from '../utils/id'
 import { toInputDate } from '../utils/format'
 import { calculatePeriodStats } from '../utils/calculations'
@@ -235,8 +235,18 @@ class LocalDataService implements IDataService {
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
-    const normalized = email.trim().toLowerCase()
-    return (await db.getByIndex<User>(STORES.users, 'email', normalized)) ?? null
+    return this.findUserByEmail(email)
+  }
+
+  private async findUserByEmail(email: string): Promise<User | null> {
+    const normalized = normalizeEmail(email)
+    if (!normalized) return null
+
+    const byIndex = await db.getByIndex<User>(STORES.users, 'email', normalized)
+    if (byIndex) return byIndex
+
+    const allUsers = await db.getAll<User>(STORES.users)
+    return allUsers.find((user) => normalizeEmail(user.email) === normalized) ?? null
   }
 
   async saveUser(user: User): Promise<void> {
@@ -249,35 +259,51 @@ class LocalDataService implements IDataService {
     name: string,
     currency: string,
   ): Promise<User> {
-    const normalizedEmail = email.trim().toLowerCase()
-    const existing = await this.getUserByEmail(normalizedEmail)
-    if (existing) throw new Error('Пользователь с таким email уже существует')
+    return this.withMutex(async () => {
+      const normalizedEmail = normalizeEmail(email)
+      if (!normalizedEmail) throw new Error('Введите email')
 
-    const passwordHash = await hashPassword(password)
-    const user: User = {
-      id: generateId(),
-      email: normalizedEmail,
-      passwordHash,
-      name: name.trim(),
-      currency,
-      createdAt: new Date().toISOString(),
-    }
-    await db.put(STORES.users, user)
-    await this.migrateOrphanData(user.id)
-    await this.setSession(user.id)
-    return user
+      const existing = await this.findUserByEmail(normalizedEmail)
+      if (existing) throw new Error('Пользователь с таким email уже существует')
+
+      const userId = generateId()
+      await this.migrateOrphanData(userId)
+
+      const passwordHash = await hashPassword(password)
+      const user: User = {
+        id: userId,
+        email: normalizedEmail,
+        passwordHash,
+        name: name.trim(),
+        currency,
+        createdAt: new Date().toISOString(),
+      }
+
+      await db.runTransactionSync([STORES.users, STORES.settings], 'readwrite', (stores) => {
+        stores[STORES.users].put(user)
+        stores[STORES.settings].put({ key: 'session', value: { userId: user.id } })
+      })
+
+      return user
+    })
   }
 
   async loginUser(email: string, password: string): Promise<User> {
-    const normalizedEmail = email.trim().toLowerCase()
-    const user = await this.getUserByEmail(normalizedEmail)
-    if (!user) throw new Error('Неверный email или пароль')
+    return this.withMutex(async () => {
+      const normalizedEmail = normalizeEmail(email)
+      if (!normalizedEmail) throw new Error('Неверный email или пароль')
 
-    const valid = await verifyPassword(password, user.passwordHash)
-    if (!valid) throw new Error('Неверный email или пароль')
+      const user = await this.findUserByEmail(normalizedEmail)
+      if (!user || !isPasswordHash(user.passwordHash)) {
+        throw new Error('Неверный email или пароль')
+      }
 
-    await this.setSession(user.id)
-    return user
+      const valid = await verifyPassword(password, user.passwordHash)
+      if (!valid) throw new Error('Неверный email или пароль')
+
+      await this.setSession(user.id)
+      return user
+    })
   }
 
   async logout(): Promise<void> {

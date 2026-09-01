@@ -1,5 +1,5 @@
 const DB_NAME = 'spendly'
-const DB_VERSION = 5
+const DB_VERSION = 6
 
 const STORES = {
   users: 'users',
@@ -45,16 +45,35 @@ function ensureTransactionIndexes(store: IDBObjectStore): void {
 }
 
 function ensureEmailIndex(userStore: IDBObjectStore): void {
-  if (userStore.indexNames.contains('email')) return
+  if (userStore.indexNames.contains('email')) {
+    const request = userStore.openCursor()
+    request.onsuccess = () => {
+      const cursor = request.result
+      if (!cursor) return
+
+      const user = cursor.value as { email?: string }
+      const normalized = user.email?.trim().toLowerCase()
+      if (normalized && user.email !== normalized) {
+        cursor.update({ ...user, email: normalized })
+      }
+      cursor.continue()
+    }
+    return
+  }
 
   const request = userStore.openCursor()
   request.onsuccess = () => {
     const cursor = request.result
     if (cursor) {
-      const user = cursor.value as { id: string; email?: string }
-      if (!user.email) {
-        userStore.delete(cursor.primaryKey)
+      const user = cursor.value as { email?: string }
+      const normalized = user.email?.trim().toLowerCase()
+
+      if (!normalized) {
+        cursor.delete()
+      } else if (user.email !== normalized) {
+        cursor.update({ ...user, email: normalized })
       }
+
       cursor.continue()
     } else if (!userStore.indexNames.contains('email')) {
       userStore.createIndex('email', 'email', { unique: true })

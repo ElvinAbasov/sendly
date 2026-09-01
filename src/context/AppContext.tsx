@@ -281,7 +281,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const u = await dataService.loginUser(email, password)
     setUser(u)
     setIsAuthenticated(true)
-    await refresh()
+    try {
+      await refresh()
+    } catch (err) {
+      console.error('Post-login refresh failed:', err)
+    }
   }
 
   const register = async (
@@ -293,7 +297,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const u = await dataService.registerUser(email, password, name, currency)
     setUser(u)
     setIsAuthenticated(true)
-    await refresh()
+    try {
+      await refresh()
+    } catch (err) {
+      console.error('Post-register refresh failed:', err)
+    }
   }
 
   const logout = async () => {
