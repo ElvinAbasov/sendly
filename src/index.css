@@ -1877,6 +1877,54 @@ body {
   color: var(--expense);
 }
 
+.settings-install-hint {
+  margin-top: 12px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.settings-install-hint--info {
+  color: var(--text-secondary);
+}
+
+.app-install-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.app-install-status__icon {
+  flex-shrink: 0;
+  color: var(--income);
+  margin-top: 2px;
+}
+
+.app-install-status__title {
+  display: block;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.app-install-status__hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.install-steps {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.install-steps li + li {
+  margin-top: 8px;
+}
+
 .period-current {
   display: flex;
   align-items: center;

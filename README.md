@@ -38,6 +38,28 @@ npm run preview
 
 После сборки приложение можно установить на Android через браузер (Chrome → «Установить приложение»). Работает офлайн после первой загрузки.
 
+## APK (Android)
+
+Проект обёрнут в [Capacitor](https://capacitorjs.com/) — можно собрать `.apk` и установить как обычное приложение.
+
+### Без Android Studio (рекомендуется)
+
+APK собирается автоматически в **GitHub Actions** — на компьютер ничего ставить не нужно.
+
+1. Закоммить и запушить проект на GitHub (папка `android/`, `capacitor.config.ts`, workflow).
+2. Открыть репозиторий → вкладка **Actions**.
+3. Запустить workflow **Build Android APK** (или дождаться запуска после push в `main`).
+4. Когда сборка зелёная → внизу run → **Artifacts** → скачать **Spendly-debug-apk**.
+5. Распаковать zip, скопировать `app-debug.apk` на телефон и установить.
+
+Повторная сборка после изменений в коде: push в `main` → снова скачать artifact.
+
+### Через Android Studio (локально)
+
+1. [Android Studio](https://developer.android.com/studio)
+2. `npm run android` → **Build → Build APK(s)**
+3. Файл: `android/app/build/outputs/apk/debug/app-debug.apk`
+
 ## Структура данных
 
 - **User** — профиль (имя, валюта)

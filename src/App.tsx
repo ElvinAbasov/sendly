@@ -56,9 +56,11 @@ function AppRoutes() {
   )
 }
 
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={routerBasename || undefined}>
       <AppProvider>
         <AppRoutes />
       </AppProvider>

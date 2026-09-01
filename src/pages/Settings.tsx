@@ -2,9 +2,10 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Sun, Download, Upload, Trash2, User, Calendar,
-  ChevronRight, AlertTriangle, LogOut,
+  ChevronRight, AlertTriangle, LogOut, Smartphone, CheckCircle2,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useAppInstall } from '../hooks/useAppInstall'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -45,6 +46,17 @@ export function Settings() {
   const [periodError, setPeriodError] = useState('')
   const [saving, setSaving] = useState(false)
   const [importError, setImportError] = useState('')
+  const [showIosInstall, setShowIosInstall] = useState(false)
+  const [installMessage, setInstallMessage] = useState('')
+
+  const {
+    showSection: showInstallSection,
+    installed: appInstalled,
+    installing: appInstalling,
+    installApp,
+    buttonLabel,
+    buttonHint,
+  } = useAppInstall()
 
   const handleSaveProfile = async () => {
     if (!name.trim()) return
@@ -129,6 +141,30 @@ export function Settings() {
   const handleLogout = async () => {
     await logout()
     navigate('/login')
+  }
+
+  const handleInstallApp = async () => {
+    setInstallMessage('')
+    const result = await installApp()
+    if (result === 'installed') {
+      setInstallMessage('Готово! Иконка Spendly появится на главном экране.')
+      return
+    }
+    if (result === 'ios-help') {
+      setShowIosInstall(true)
+      return
+    }
+    if (result === 'apk') {
+      setInstallMessage('Откройте скачанный Spendly.apk и нажмите «Установить».')
+      return
+    }
+    if (result === 'dismissed') {
+      setInstallMessage('Нажмите снова или скачайте APK — кнопка повторит загрузку.')
+      return
+    }
+    if (!appInstalled) {
+      setInstallMessage('Откройте Spendly в Chrome на Android и попробуйте снова.')
+    }
   }
 
   const closedPeriods = periods.filter((p) => p.endDate !== null)
@@ -226,6 +262,36 @@ export function Settings() {
         )}
       </section>
 
+      {showInstallSection && (
+        <section className="settings-section">
+          <h3 className="settings-section__title">
+            <Smartphone size={18} /> Приложение
+          </h3>
+          <Card>
+            {appInstalled ? (
+              <div className="app-install-status">
+                <CheckCircle2 size={20} className="app-install-status__icon" />
+                <div>
+                  <span className="app-install-status__title">Приложение установлено</span>
+                  <span className="app-install-status__hint">{buttonHint}</span>
+                </div>
+              </div>
+            ) : (
+              <>
+                <Button fullWidth onClick={handleInstallApp} loading={appInstalling}>
+                  <Smartphone size={18} />
+                  {buttonLabel}
+                </Button>
+                <p className="settings-install-hint">{buttonHint}</p>
+                {installMessage && (
+                  <p className="settings-install-hint settings-install-hint--info">{installMessage}</p>
+                )}
+              </>
+            )}
+          </Card>
+        </section>
+      )}
+
       <section className="settings-section">
         <h3 className="settings-section__title">Аккаунт</h3>
         <Card>
@@ -309,6 +375,18 @@ export function Settings() {
             Закрыть
           </Button>
         </div>
+      </Modal>
+
+      <Modal open={showIosInstall} onClose={() => setShowIosInstall(false)} title="Установка на iPhone">
+        <ol className="install-steps">
+          <li>Откройте Spendly в <strong>Safari</strong></li>
+          <li>Нажмите «Поделиться» внизу экрана</li>
+          <li>Выберите «На экран Домой»</li>
+          <li>Нажмите «Добавить»</li>
+        </ol>
+        <Button fullWidth onClick={() => setShowIosInstall(false)}>
+          Понятно
+        </Button>
       </Modal>
 
       <Modal open={showClearData} onClose={() => setShowClearData(false)} title="Удалить все данные?">

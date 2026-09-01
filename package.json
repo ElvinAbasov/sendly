@@ -8,9 +8,15 @@
     "build": "node scripts/generate-icons.mjs && tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "cap:sync": "npm run build && npx cap sync android",
+    "android": "npm run cap:sync && npx cap open android",
+    "android:run": "npm run cap:sync && npx cap run android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.38.0",
     "react": "^19.2.8",
