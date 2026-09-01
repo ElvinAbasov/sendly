@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -11,50 +12,104 @@ import {
   calculatePeriodStats,
   calculateCategoryStats,
   calculateBalanceHistory,
+  calculateSavingsStats,
   comparePeriods,
 } from '../utils/calculations'
 import {
   dataService,
-  createUser,
   createPeriod,
   createTransaction,
 } from '../services/dataService'
+import { shouldShowAutoDepositPrompt } from '../utils/savings'
 import type {
   AppSettings,
   ExportData,
   Period,
   PeriodStats,
+  SavingGoal,
+  SavingsStats,
   Transaction,
   User,
 } from '../types'
 
 interface AppState {
   loading: boolean
+  isAuthenticated: boolean
   user: User | null
   periods: Period[]
   activePeriod: Period | null
   transactions: Transaction[]
   allTransactions: Transaction[]
+  savingGoals: SavingGoal[]
   settings: AppSettings
   stats: PeriodStats | null
+  savingsStats: SavingsStats | null
   previousStats: PeriodStats | null
   comparison: ReturnType<typeof comparePeriods> | null
   expenseCategories: ReturnType<typeof calculateCategoryStats>
   incomeCategories: ReturnType<typeof calculateCategoryStats>
   balanceHistory: ReturnType<typeof calculateBalanceHistory>
+  pendingAutoDeposits: SavingGoal[]
+  operationInProgress: boolean
 }
 
 interface AppActions {
   init: () => Promise<void>
-  setupUser: (name: string, currency: string) => Promise<void>
+  login: (email: string, password: string) => Promise<void>
+  register: (
+    email: string,
+    password: string,
+    name: string,
+    currency: string,
+  ) => Promise<void>
+  logout: () => Promise<void>
   setupPeriod: (name: string, initialCapital: number) => Promise<void>
   closeCurrentPeriod: () => Promise<void>
   addTransaction: (
-    data: Omit<Transaction, 'id' | 'createdAt' | 'periodId'>,
+    data: Omit<Transaction, 'id' | 'createdAt' | 'periodId' | 'userId'>,
   ) => Promise<void>
   updateTransaction: (transaction: Transaction) => Promise<void>
   removeTransaction: (id: string) => Promise<void>
+  createSavingGoal: (
+    data: Omit<
+      SavingGoal,
+      | 'id'
+      | 'userId'
+      | 'currentAmount'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'completedAt'
+      | 'isCompleted'
+      | 'lastAutoDepositPromptMonth'
+    >,
+  ) => Promise<SavingGoal>
+  updateSavingGoal: (
+    id: string,
+    data: Partial<
+      Pick<
+        SavingGoal,
+        | 'name'
+        | 'description'
+        | 'icon'
+        | 'targetAmount'
+        | 'targetDate'
+        | 'autoDepositAmount'
+        | 'autoDepositDay'
+      >
+    >,
+  ) => Promise<SavingGoal>
+  depositToSaving: (savingId: string, amount: number) => Promise<SavingGoal>
+  withdrawFromSaving: (savingId: string, amount: number) => Promise<SavingGoal>
+  transferBetweenSavings: (
+    sourceId: string,
+    destinationId: string,
+    amount: number,
+  ) => Promise<void>
+  deleteSaving: (savingId: string, returnFunds: boolean) => Promise<void>
+  skipAutoDeposit: (savingId: string) => Promise<void>
+  confirmAutoDeposit: (savingId: string) => Promise<SavingGoal>
   setTheme: (theme: 'light' | 'dark') => Promise<void>
+  addCustomCategory: (kind: 'expense' | 'income', name: string) => Promise<void>
   updateUser: (updates: Partial<Pick<User, 'name' | 'currency'>>) => Promise<void>
   exportData: () => Promise<ExportData>
   importData: (data: ExportData) => Promise<void>
@@ -68,11 +123,15 @@ const AppContext = createContext<AppContextType | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [periods, setPeriods] = useState<Period[]>([])
   const [activePeriod, setActivePeriod] = useState<Period | null>(null)
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
+  const [savingGoals, setSavingGoals] = useState<SavingGoal[]>([])
   const [settings, setSettings] = useState<AppSettings>({ theme: 'dark' })
+  const [operationInProgress, setOperationInProgress] = useState(false)
+  const operationLock = useRef(false)
 
   const transactions = useMemo(
     () =>
@@ -83,8 +142,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const stats = useMemo(
-    () => (activePeriod ? calculatePeriodStats(activePeriod, allTransactions) : null),
-    [activePeriod, allTransactions],
+    () =>
+      activePeriod
+        ? calculatePeriodStats(activePeriod, allTransactions, savingGoals)
+        : null,
+    [activePeriod, allTransactions, savingGoals],
+  )
+
+  const savingsStats = useMemo(
+    () => (savingGoals.length > 0 ? calculateSavingsStats(savingGoals) : null),
+    [savingGoals],
   )
 
   const previousPeriod = useMemo(() => {
@@ -95,9 +162,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const previousStats = useMemo(
     () =>
       previousPeriod
-        ? calculatePeriodStats(previousPeriod, allTransactions)
+        ? calculatePeriodStats(
+            previousPeriod,
+            allTransactions,
+            savingGoals,
+            previousPeriod.endDate,
+          )
         : null,
-    [previousPeriod, allTransactions],
+    [previousPeriod, allTransactions, savingGoals],
   )
 
   const comparison = useMemo(
@@ -123,18 +195,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [activePeriod, allTransactions],
   )
 
+  const pendingAutoDeposits = useMemo(
+    () => savingGoals.filter((g) => shouldShowAutoDepositPrompt(g)),
+    [savingGoals],
+  )
+
+  const withOperationLock = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
+    if (operationLock.current) throw new Error('Операция уже выполняется')
+    operationLock.current = true
+    setOperationInProgress(true)
+    try {
+      return await fn()
+    } finally {
+      operationLock.current = false
+      setOperationInProgress(false)
+    }
+  }, [])
+
   const refresh = useCallback(async () => {
-    const [u, p, ap, txs, s] = await Promise.all([
-      dataService.getUser(),
+    const session = await dataService.getSession()
+    if (!session) {
+      setIsAuthenticated(false)
+      setUser(null)
+      setPeriods([])
+      setActivePeriod(null)
+      setAllTransactions([])
+      setSavingGoals([])
+      const s = await dataService.getSettings()
+      setSettings(s)
+      return
+    }
+
+    const u = await dataService.getUser()
+    if (!u) {
+      await dataService.clearSession()
+      setIsAuthenticated(false)
+      setUser(null)
+      setPeriods([])
+      setActivePeriod(null)
+      setAllTransactions([])
+      setSavingGoals([])
+      const s = await dataService.getSettings()
+      setSettings(s)
+      return
+    }
+
+    const [p, ap, txs, goals, s] = await Promise.all([
       dataService.getPeriods(),
       dataService.getActivePeriod(),
       dataService.getTransactions(),
+      dataService.getSavingGoals(),
       dataService.getSettings(),
     ])
+    setIsAuthenticated(true)
     setUser(u)
     setPeriods(p)
     setActivePeriod(ap)
     setAllTransactions(txs)
+    setSavingGoals(goals)
     setSettings(s)
   }, [])
 
@@ -157,13 +275,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute('data-theme', settings.theme)
   }, [settings.theme])
 
-  const setupUser = async (name: string, currency: string) => {
-    const u = await createUser(name, currency)
+  const login = async (email: string, password: string) => {
+    const u = await dataService.loginUser(email, password)
     setUser(u)
+    setIsAuthenticated(true)
+    await refresh()
+  }
+
+  const register = async (
+    email: string,
+    password: string,
+    name: string,
+    currency: string,
+  ) => {
+    const u = await dataService.registerUser(email, password, name, currency)
+    setUser(u)
+    setIsAuthenticated(true)
+    await refresh()
+  }
+
+  const logout = async () => {
+    await dataService.logout()
+    setIsAuthenticated(false)
+    setUser(null)
+    setPeriods([])
+    setActivePeriod(null)
+    setAllTransactions([])
+    setSavingGoals([])
   }
 
   const setupPeriod = async (name: string, initialCapital: number) => {
-    const p = await createPeriod(name, initialCapital)
+    if (!user) throw new Error('Не авторизован')
+    const p = await createPeriod(user.id, name, initialCapital)
     await refresh()
     setActivePeriod(p)
   }
@@ -175,25 +318,165 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const addTransaction = async (
-    data: Omit<Transaction, 'id' | 'createdAt' | 'periodId'>,
+    data: Omit<Transaction, 'id' | 'createdAt' | 'periodId' | 'userId'>,
   ) => {
-    if (!activePeriod) throw new Error('Нет активного периода')
-    await createTransaction({ ...data, periodId: activePeriod.id })
-    await refresh()
+    if (!activePeriod || !user) throw new Error('Нет активного периода')
+    return withOperationLock(async () => {
+      await createTransaction({ ...data, periodId: activePeriod.id, userId: user.id })
+      await refresh()
+    })
   }
 
   const updateTransaction = async (transaction: Transaction) => {
-    await dataService.saveTransaction(transaction)
-    await refresh()
+    return withOperationLock(async () => {
+      await dataService.saveTransaction(transaction)
+      await refresh()
+    })
   }
 
   const removeTransaction = async (id: string) => {
-    await dataService.deleteTransaction(id)
+    return withOperationLock(async () => {
+      await dataService.deleteTransaction(id)
+      await refresh()
+    })
+  }
+
+  const createSavingGoalAction = async (
+    data: Omit<
+      SavingGoal,
+      | 'id'
+      | 'userId'
+      | 'currentAmount'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'completedAt'
+      | 'isCompleted'
+      | 'lastAutoDepositPromptMonth'
+    >,
+  ) => {
+    const goal = await dataService.createSavingGoal(data)
+    await refresh()
+    return goal
+  }
+
+  const updateSavingGoalAction = async (
+    id: string,
+    data: Partial<
+      Pick<
+        SavingGoal,
+        | 'name'
+        | 'description'
+        | 'icon'
+        | 'targetAmount'
+        | 'targetDate'
+        | 'autoDepositAmount'
+        | 'autoDepositDay'
+      >
+    >,
+  ) => {
+    const goal = await dataService.updateSavingGoal(id, data)
+    await refresh()
+    return goal
+  }
+
+  const depositToSavingAction = async (savingId: string, amount: number) => {
+    if (!activePeriod) throw new Error('Нет активного периода')
+    return withOperationLock(async () => {
+      const goal = await dataService.depositToSaving(savingId, amount, activePeriod.id)
+      await refresh()
+      return goal
+    })
+  }
+
+  const withdrawFromSavingAction = async (savingId: string, amount: number) => {
+    if (!activePeriod) throw new Error('Нет активного периода')
+    return withOperationLock(async () => {
+      const goal = await dataService.withdrawFromSaving(savingId, amount, activePeriod.id)
+      await refresh()
+      return goal
+    })
+  }
+
+  const transferBetweenSavingsAction = async (
+    sourceId: string,
+    destinationId: string,
+    amount: number,
+  ) => {
+    if (!activePeriod) throw new Error('Нет активного периода')
+    await withOperationLock(async () => {
+      await dataService.transferBetweenSavings(
+        sourceId,
+        destinationId,
+        amount,
+        activePeriod.id,
+      )
+      await refresh()
+    })
+  }
+
+  const deleteSavingAction = async (savingId: string, returnFunds: boolean) => {
+    if (!activePeriod) throw new Error('Нет активного периода')
+    await withOperationLock(async () => {
+      if (returnFunds) {
+        await dataService.deleteSavingWithReturn(savingId, activePeriod.id)
+      } else {
+        const goal = savingGoals.find((g) => g.id === savingId)
+        if (goal && goal.currentAmount > 0) {
+          throw new Error('Сначала верните деньги в доступный баланс')
+        }
+        await dataService.deleteSavingGoal(savingId)
+      }
+      await refresh()
+    })
+  }
+
+  const skipAutoDepositAction = async (savingId: string) => {
+    await dataService.skipAutoDepositPrompt(savingId)
     await refresh()
   }
 
+  const confirmAutoDepositAction = async (savingId: string) => {
+    if (!activePeriod) throw new Error('Нет активного периода')
+    const goal = savingGoals.find((g) => g.id === savingId)
+    if (!goal?.autoDepositAmount) throw new Error('Автопополнение не настроено')
+    return withOperationLock(async () => {
+      const result = await dataService.depositToSaving(
+        savingId,
+        goal.autoDepositAmount!,
+        activePeriod.id,
+      )
+      await dataService.skipAutoDepositPrompt(savingId)
+      await refresh()
+      return result
+    })
+  }
+
   const setTheme = async (theme: 'light' | 'dark') => {
-    const s = { theme }
+    const s = { ...settings, theme }
+    await dataService.saveSettings(s)
+    setSettings(s)
+  }
+
+  const addCustomCategory = async (kind: 'expense' | 'income', name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+
+    const customCategories = {
+      expense: [...(settings.customCategories?.expense ?? [])],
+      income: [...(settings.customCategories?.income ?? [])],
+    }
+    customCategories[kind].push(trimmed)
+
+    const customCategoryIcons = {
+      ...(settings.customCategoryIcons ?? {}),
+      [trimmed]: '📦',
+    }
+
+    const s = {
+      ...settings,
+      customCategories,
+      customCategoryIcons,
+    }
     await dataService.saveSettings(s)
     setSettings(s)
   }
@@ -210,41 +493,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const exportData = () => dataService.exportData()
 
   const importData = async (data: ExportData) => {
-    await dataService.importData(data)
-    await refresh()
+    await withOperationLock(async () => {
+      await dataService.importData(data)
+      await refresh()
+      const u = await dataService.getUser()
+      if (u) setUser(u)
+    })
   }
 
   const clearAllData = async () => {
     await dataService.clearAllData()
+    setIsAuthenticated(false)
     setUser(null)
     setPeriods([])
     setActivePeriod(null)
     setAllTransactions([])
+    setSavingGoals([])
     setSettings({ theme: 'dark' })
   }
 
   const value: AppContextType = {
     loading,
+    isAuthenticated,
     user,
     periods,
     activePeriod,
     transactions,
     allTransactions,
+    savingGoals,
     settings,
     stats,
+    savingsStats,
     previousStats,
     comparison,
     expenseCategories,
     incomeCategories,
     balanceHistory,
+    pendingAutoDeposits,
+    operationInProgress,
     init,
-    setupUser,
+    login,
+    register,
+    logout,
     setupPeriod,
     closeCurrentPeriod,
     addTransaction,
     updateTransaction,
     removeTransaction,
+    createSavingGoal: createSavingGoalAction,
+    updateSavingGoal: updateSavingGoalAction,
+    depositToSaving: depositToSavingAction,
+    withdrawFromSaving: withdrawFromSavingAction,
+    transferBetweenSavings: transferBetweenSavingsAction,
+    deleteSaving: deleteSavingAction,
+    skipAutoDeposit: skipAutoDepositAction,
+    confirmAutoDeposit: confirmAutoDepositAction,
     setTheme,
+    addCustomCategory,
     updateUser,
     exportData,
     importData,

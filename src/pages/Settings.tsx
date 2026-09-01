@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Sun, Download, Upload, Trash2, User, Calendar,
-  ChevronRight, AlertTriangle,
+  ChevronRight, AlertTriangle, LogOut,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Card } from '../components/ui/Card'
@@ -15,6 +16,7 @@ import { formatAmount, formatDateFull, parseAmount } from '../utils/format'
 import type { ExportData } from '../types'
 
 export function Settings() {
+  const navigate = useNavigate()
   const {
     user,
     periods,
@@ -27,6 +29,7 @@ export function Settings() {
     exportData,
     importData,
     clearAllData,
+    logout,
   } = useApp()
 
   const fileRef = useRef<HTMLInputElement>(null)
@@ -41,6 +44,7 @@ export function Settings() {
   const [clearConfirm, setClearConfirm] = useState('')
   const [periodError, setPeriodError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [importError, setImportError] = useState('')
 
   const handleSaveProfile = async () => {
     if (!name.trim()) return
@@ -94,17 +98,17 @@ export function Settings() {
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    setImportError('')
     try {
       const text = await file.text()
       const data = JSON.parse(text) as ExportData
-      if (!data.version || !data.periods || !data.transactions) {
-        throw new Error('Неверный формат файла')
-      }
       await importData(data)
-      setName(data.user?.name ?? '')
-      setCurrency(data.user?.currency ?? 'USD')
-    } catch {
-      alert('Ошибка импорта. Проверьте формат файла.')
+      if (data.user?.name) setName(data.user.name)
+      if (data.user?.currency) setCurrency(data.user.currency)
+    } catch (err) {
+      setImportError(
+        err instanceof Error ? err.message : 'Ошибка импорта. Проверьте формат файла.',
+      )
     }
     if (fileRef.current) fileRef.current.value = ''
   }
@@ -116,9 +120,15 @@ export function Settings() {
       await clearAllData()
       setShowClearData(false)
       setClearConfirm('')
+      navigate('/login')
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login')
   }
 
   const closedPeriods = periods.filter((p) => p.endDate !== null)
@@ -135,13 +145,22 @@ export function Settings() {
         </h3>
         <Card>
           <Input label="Имя" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input
+            label="Email"
+            type="email"
+            value={user?.email ?? ''}
+            disabled
+          />
           <Select
             label="Валюта"
             value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
+            onChange={setCurrency}
+            sheetTitle="Валюта"
+            searchable
             options={CURRENCIES.map((c) => ({
               value: c.code,
               label: `${c.symbol} ${c.name}`,
+              emoji: c.symbol,
             }))}
           />
           <Button onClick={handleSaveProfile} size="sm">
@@ -208,6 +227,17 @@ export function Settings() {
       </section>
 
       <section className="settings-section">
+        <h3 className="settings-section__title">Аккаунт</h3>
+        <Card>
+          <button className="settings-row" onClick={handleLogout}>
+            <LogOut size={18} />
+            <span>Выйти</span>
+            <ChevronRight size={18} />
+          </button>
+        </Card>
+      </section>
+
+      <section className="settings-section">
         <h3 className="settings-section__title">Данные</h3>
         <Card>
           <button className="settings-row" onClick={handleExport}>
@@ -227,6 +257,9 @@ export function Settings() {
             hidden
             onChange={handleImport}
           />
+          {importError && (
+            <p className="input-group__error settings-import-error">{importError}</p>
+          )}
           <button
             className="settings-row settings-row--danger"
             onClick={() => setShowClearData(true)}

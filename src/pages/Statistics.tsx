@@ -105,9 +105,14 @@ export function Statistics() {
           <h3 className="section-title">Сравнение с прошлым периодом</h3>
           <div className="comparison-table">
             <div className="comparison-row">
-              <span>Баланс</span>
-              <span>{formatAmount(stats.balance, user.currency)}</span>
-              <span className="comparison-prev">{formatAmount(previousStats.balance, user.currency)}</span>
+              <span>Доступно</span>
+              <span>{formatAmount(stats.availableBalance, user.currency)}</span>
+              <span className="comparison-prev">{formatAmount(previousStats.availableBalance, user.currency)}</span>
+            </div>
+            <div className="comparison-row">
+              <span>Общий капитал</span>
+              <span>{formatAmount(stats.totalCapital, user.currency)}</span>
+              <span className="comparison-prev">{formatAmount(previousStats.totalCapital, user.currency)}</span>
             </div>
             <div className="comparison-row">
               <span>Доходы</span>

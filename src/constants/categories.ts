@@ -26,6 +26,7 @@ export const CURRENCIES = [
   { code: 'KZT', symbol: '₸', name: 'Казахстанский тенге' },
   { code: 'UZS', symbol: 'сум', name: 'Узбекский сум' },
   { code: 'AED', symbol: 'د.إ', name: 'Дирхам ОАЭ' },
+  { code: 'AZN', symbol: '₼', name: 'Азербайджанский манат' },
 ] as const
 
 export const CATEGORY_ICONS: Record<string, string> = {

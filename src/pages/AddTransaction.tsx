@@ -5,13 +5,14 @@ import { useApp } from '../context/AppContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { AmountInput } from '../components/ui/AmountInput'
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, CATEGORY_ICONS } from '../constants/categories'
-import { parseAmount, toInputDate } from '../utils/format'
+import { CategorySelect, getDefaultCategory } from '../components/ui/CategorySelect'
+import { isCategoryValidForKind } from '../utils/categories'
+import { parseAmount, toInputDate, parseInputDateToISO } from '../utils/format'
 import type { TransactionType } from '../types'
 
 export function AddTransaction() {
   const navigate = useNavigate()
-  const { user, activePeriod, addTransaction } = useApp()
+  const { user, activePeriod, addTransaction, settings } = useApp()
 
   const [type, setType] = useState<TransactionType>('expense')
   const [amount, setAmount] = useState('')
@@ -23,8 +24,13 @@ export function AddTransaction() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setCategory(type === 'expense' ? EXPENSE_CATEGORIES[0] : INCOME_CATEGORIES[0])
-  }, [type])
+    const kind = type === 'expense' ? 'expense' : 'income'
+    setCategory((current) =>
+      isCategoryValidForKind(current, kind, settings.customCategories)
+        ? current
+        : getDefaultCategory(kind, settings.customCategories),
+    )
+  }, [type, settings.customCategories])
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -58,7 +64,7 @@ export function AddTransaction() {
         category,
         title: title.trim(),
         note: note.trim(),
-        date: new Date(date).toISOString(),
+        date: parseInputDateToISO(date),
       })
       navigate('/')
     } catch (err) {
@@ -103,19 +109,14 @@ export function AddTransaction() {
         error={errors.amount}
       />
 
-      <div className="category-grid">
-        {(type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).map((cat) => (
-          <button
-            key={cat}
-            className={`category-chip ${category === cat ? 'category-chip--active' : ''}`}
-            onClick={() => setCategory(cat)}
-          >
-            <span className="category-chip__emoji">{CATEGORY_ICONS[cat]}</span>
-            {cat}
-          </button>
-        ))}
-      </div>
-      {errors.category && <span className="input-group__error">{errors.category}</span>}
+      <CategorySelect
+        label="Категория"
+        mode={type === 'expense' ? 'expense' : 'income'}
+        value={category}
+        onChange={setCategory}
+        allowCreate
+        error={errors.category}
+      />
 
       <Input
         label="Название"

@@ -4,14 +4,17 @@ import { Search, Pencil, Trash2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
+import { CategorySelect, getDefaultCategory } from '../components/ui/CategorySelect'
 import { Select } from '../components/ui/Select'
+import { HistoryTypeFilters } from '../components/history/HistoryTypeFilters'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { AmountInput } from '../components/ui/AmountInput'
 import { TransactionItem } from '../components/transactions/TransactionItem'
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../constants/categories'
-import { formatDateGroup, parseAmount } from '../utils/format'
-import type { Transaction, TransactionType } from '../types'
+import { isCategoryValidForKind } from '../utils/categories'
+import { formatDateGroup, parseAmount, parseInputDateToISO } from '../utils/format'
+import type { Transaction, TransactionType, HistoryTypeFilter } from '../types'
+import { isSavingTransaction } from '../utils/savings'
 
 export function History() {
   const {
@@ -19,14 +22,17 @@ export function History() {
     periods,
     activePeriod,
     allTransactions,
+    savingGoals,
     updateTransaction,
     removeTransaction,
+    settings,
   } = useApp()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'all' | TransactionType>('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState<HistoryTypeFilter>('all')
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('all')
+  const [incomeCategoryFilter, setIncomeCategoryFilter] = useState('all')
   const [periodFilter, setPeriodFilter] = useState('current')
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [deleteTx, setDeleteTx] = useState<Transaction | null>(null)
@@ -45,6 +51,10 @@ export function History() {
     const editId = searchParams.get('edit')
     if (editId) {
       const tx = allTransactions.find((t) => t.id === editId)
+      if (tx && tx.type !== 'income' && tx.type !== 'expense') {
+        setSearchParams({}, { replace: true })
+        return
+      }
       if (tx) {
         setEditingTx(tx)
         setEditForm({
@@ -61,7 +71,24 @@ export function History() {
     }
   }, [searchParams, allTransactions, setSearchParams])
 
-  const allCategories = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES]
+  const periodOptions = useMemo(
+    () => [
+      {
+        value: 'current',
+        label: activePeriod?.name ?? 'Текущий',
+      },
+      { value: 'all', label: 'Все периоды' },
+      ...periods
+        .filter((p) => p.id !== activePeriod?.id)
+        .map((p) => ({ value: p.id, label: p.name })),
+    ],
+    [periods, activePeriod],
+  )
+
+  const savingNames = useMemo(
+    () => Object.fromEntries(savingGoals.map((g) => [g.id, g.name])),
+    [savingGoals],
+  )
 
   const filtered = useMemo(() => {
     let txs = [...allTransactions]
@@ -72,12 +99,24 @@ export function History() {
       txs = txs.filter((t) => t.periodId === periodFilter)
     }
 
-    if (typeFilter !== 'all') {
-      txs = txs.filter((t) => t.type === typeFilter)
+    if (typeFilter === 'income') {
+      txs = txs.filter((t) => t.type === 'income')
+    } else if (typeFilter === 'expense') {
+      txs = txs.filter((t) => t.type === 'expense')
+    } else if (typeFilter === 'savings') {
+      txs = txs.filter((t) => isSavingTransaction(t.type))
     }
 
-    if (categoryFilter !== 'all') {
-      txs = txs.filter((t) => t.category === categoryFilter)
+    if (expenseCategoryFilter !== 'all' || incomeCategoryFilter !== 'all') {
+      txs = txs.filter((t) => {
+        if (t.type === 'expense') {
+          return expenseCategoryFilter === 'all' || t.category === expenseCategoryFilter
+        }
+        if (t.type === 'income') {
+          return incomeCategoryFilter === 'all' || t.category === incomeCategoryFilter
+        }
+        return true
+      })
     }
 
     if (search.trim()) {
@@ -93,7 +132,7 @@ export function History() {
     return txs.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     )
-  }, [allTransactions, periodFilter, activePeriod, typeFilter, categoryFilter, search])
+  }, [allTransactions, periodFilter, activePeriod, typeFilter, expenseCategoryFilter, incomeCategoryFilter, search])
 
   const grouped = useMemo(() => {
     const groups = new Map<string, Transaction[]>()
@@ -136,7 +175,7 @@ export function History() {
         category: editForm.category,
         title: editForm.title.trim(),
         note: editForm.note.trim(),
-        date: new Date(editForm.date).toISOString(),
+        date: parseInputDateToISO(editForm.date),
       })
       setEditingTx(null)
     } finally {
@@ -157,8 +196,16 @@ export function History() {
 
   if (!user) return null
 
-  const editCategories =
-    editForm.type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES
+  const setEditType = (type: TransactionType) => {
+    const kind = type === 'expense' ? 'expense' : 'income'
+    setEditForm({
+      ...editForm,
+      type,
+      category: isCategoryValidForKind(editForm.category, kind, settings.customCategories)
+        ? editForm.category
+        : getDefaultCategory(kind, settings.customCategories),
+    })
+  }
 
   return (
     <div className="page history-page">
@@ -176,32 +223,51 @@ export function History() {
         />
       </div>
 
-      <div className="filter-row">
+      <div className="history-filters">
+        <HistoryTypeFilters value={typeFilter} onChange={setTypeFilter} />
+
+        {(typeFilter === 'all' || typeFilter === 'expense' || typeFilter === 'income') && (
+          <div className="history-filters__categories">
+            {(typeFilter === 'all' || typeFilter === 'expense') && (
+              <CategorySelect
+                label="Расходы"
+                mode="expense"
+                size="sm"
+                value={expenseCategoryFilter}
+                onChange={setExpenseCategoryFilter}
+                placeholder="Все"
+                allowAllOption
+                allOptionLabel="Все расходы"
+              />
+            )}
+
+            {(typeFilter === 'all' || typeFilter === 'income') && (
+              <CategorySelect
+                label="Доходы"
+                mode="income"
+                size="sm"
+                value={incomeCategoryFilter}
+                onChange={setIncomeCategoryFilter}
+                placeholder="Все"
+                allowAllOption
+                allOptionLabel="Все доходы"
+              />
+            )}
+          </div>
+        )}
+
         <Select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value as 'all' | TransactionType)}
-          options={[
-            { value: 'all', label: 'Все' },
-            { value: 'income', label: 'Доходы' },
-            { value: 'expense', label: 'Расходы' },
-          ]}
-        />
-        <Select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'Категория' },
-            ...allCategories.map((c) => ({ value: c, label: c })),
-          ]}
-        />
-        <Select
+          label="Период"
+          size="sm"
           value={periodFilter}
-          onChange={(e) => setPeriodFilter(e.target.value)}
-          options={[
-            { value: 'current', label: 'Текущий' },
-            { value: 'all', label: 'Все периоды' },
-            ...periods.map((p) => ({ value: p.id, label: p.name })),
-          ]}
+          onChange={setPeriodFilter}
+          sheetTitle="Период"
+          placeholder="Выберите период"
+          leadingIcon="📅"
+          options={periodOptions.map((opt) => ({
+            ...opt,
+            emoji: opt.value === 'all' ? '📋' : opt.value === 'current' ? '📅' : '🗓️',
+          }))}
         />
       </div>
 
@@ -216,15 +282,21 @@ export function History() {
             <Card padding="sm" className="tx-list-card">
               {txs.map((tx) => (
                 <div key={tx.id} className="tx-item-wrapper">
-                  <TransactionItem transaction={tx} currency={user.currency} />
-                  <div className="tx-item-actions">
-                    <button onClick={() => openEdit(tx)} aria-label="Редактировать">
-                      <Pencil size={16} />
-                    </button>
-                    <button onClick={() => setDeleteTx(tx)} aria-label="Удалить">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                  <TransactionItem
+                    transaction={tx}
+                    currency={user.currency}
+                    savingNames={savingNames}
+                  />
+                  {!isSavingTransaction(tx.type) && (
+                    <div className="tx-item-actions">
+                      <button onClick={() => openEdit(tx)} aria-label="Редактировать">
+                        <Pencil size={16} />
+                      </button>
+                      <button onClick={() => setDeleteTx(tx)} aria-label="Удалить">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </Card>
@@ -237,13 +309,13 @@ export function History() {
           <div className="type-toggle type-toggle--sm">
             <button
               className={`type-toggle__btn ${editForm.type === 'expense' ? 'type-toggle__btn--active type-toggle__btn--expense' : ''}`}
-              onClick={() => setEditForm({ ...editForm, type: 'expense', category: EXPENSE_CATEGORIES[0] })}
+              onClick={() => setEditType('expense')}
             >
               Расход
             </button>
             <button
               className={`type-toggle__btn ${editForm.type === 'income' ? 'type-toggle__btn--active type-toggle__btn--income' : ''}`}
-              onClick={() => setEditForm({ ...editForm, type: 'income', category: INCOME_CATEGORIES[0] })}
+              onClick={() => setEditType('income')}
             >
               Доход
             </button>
@@ -254,17 +326,13 @@ export function History() {
             currency={user.currency}
             error={editErrors.amount}
           />
-          <div className="category-grid category-grid--sm">
-            {editCategories.map((cat) => (
-              <button
-                key={cat}
-                className={`category-chip category-chip--sm ${editForm.category === cat ? 'category-chip--active' : ''}`}
-                onClick={() => setEditForm({ ...editForm, category: cat })}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+          <CategorySelect
+            label="Категория"
+            mode={editForm.type === 'expense' ? 'expense' : 'income'}
+            value={editForm.category}
+            onChange={(category) => setEditForm({ ...editForm, category })}
+            allowCreate
+          />
           <Input
             label="Название"
             value={editForm.title}
