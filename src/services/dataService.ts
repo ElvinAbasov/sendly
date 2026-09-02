@@ -282,7 +282,7 @@ class PocketBaseDataService implements IDataService {
     const userId = this.requireUserId()
     const result = await pb.collection('periods').getFullList({
       filter: ownerFilter(userId),
-      sort: '-created',
+      sort: '-startDate',
     })
     return result.map((record) => mapPeriod(record, userId))
   }
@@ -291,7 +291,7 @@ class PocketBaseDataService implements IDataService {
     const userId = this.requireUserId()
     const active = await pb.collection('periods').getFullList({
       filter: activePeriodFilter(userId),
-      sort: '-created',
+      sort: '-startDate',
     })
 
     if (active.length <= 1) {
@@ -330,7 +330,7 @@ class PocketBaseDataService implements IDataService {
       : ownerFilter(userId)
     const result = await pb.collection('transactions').getFullList({
       filter,
-      sort: '-created',
+      sort: '-date',
     })
     return result.map((record) => mapTransaction(record, userId))
   }
@@ -359,7 +359,7 @@ class PocketBaseDataService implements IDataService {
   private async getRawSavingGoals(userId: string): Promise<SavingGoal[]> {
     const result = await pb.collection('savings').getFullList({
       filter: ownerFilter(userId),
-      sort: '-created',
+      sort: '-id',
     })
     return result.map((record) => mapSaving(record, userId))
   }
