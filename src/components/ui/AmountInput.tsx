@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import { useI18n } from '../../i18n/I18nContext'
 import { getCurrencySymbol } from '../../utils/format'
 
 interface AmountInputProps {
@@ -20,6 +21,7 @@ export function AmountInput({
   error,
   autoFocus = true,
 }: AmountInputProps) {
+  const { t } = useI18n()
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function AmountInput({
           value={value}
           onChange={handleChange}
           placeholder={placeholder}
-          aria-label={label ?? 'Сумма'}
+          aria-label={label ?? t('common.amount')}
         />
       </div>
       {error && <span className="input-group__error">{error}</span>}

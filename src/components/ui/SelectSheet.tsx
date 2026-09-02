@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
+import { useI18n } from '../../i18n/I18nContext'
 
 export interface SelectSheetOption {
   value: string
@@ -37,20 +38,24 @@ export function SelectSheet({
   onChange,
   options,
   label,
-  placeholder = 'Выберите',
+  placeholder,
   sheetTitle,
   error,
   disabled = false,
   size = 'md',
   searchable,
-  searchPlaceholder = 'Поиск...',
+  searchPlaceholder,
   searchValue,
   onSearchChange,
   leadingIcon = '📋',
   footer,
   children,
-  emptyText = 'Ничего не найдено',
+  emptyText,
 }: SelectSheetProps) {
+  const { t } = useI18n()
+  const resolvedPlaceholder = placeholder ?? t('categories.selectPlaceholder')
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t('common.search')
+  const resolvedEmptyText = emptyText ?? t('empty.savingsNotFound')
   const [open, setOpen] = useState(false)
   const [internalSearch, setInternalSearch] = useState('')
 
@@ -59,7 +64,7 @@ export function SelectSheet({
 
   const selected = getSelectedOption(options, value)
   const showSearch = searchable ?? options.length > 6
-  const title = sheetTitle ?? label ?? placeholder
+  const title = sheetTitle ?? label ?? resolvedPlaceholder
 
   const filteredOptions = useMemo(() => {
     if (children) return options
@@ -84,7 +89,7 @@ export function SelectSheet({
   }, [open, onSearchChange])
 
   const displayIcon = selected?.emoji ?? leadingIcon
-  const displayText = selected?.label ?? placeholder
+  const displayText = selected?.label ?? resolvedPlaceholder
 
   const handleSelect = (next: string) => {
     onChange(next)
@@ -96,7 +101,7 @@ export function SelectSheet({
       ? children(handleSelect)
       : children ??
         (filteredOptions.length === 0 ? (
-          <p className="category-sheet__empty">{emptyText}</p>
+          <p className="category-sheet__empty">{resolvedEmptyText}</p>
         ) : (
           filteredOptions.map((opt) => {
             const isActive = value === opt.value
@@ -124,7 +129,7 @@ export function SelectSheet({
       <button
         type="button"
         className="category-sheet-overlay"
-        aria-label="Закрыть"
+        aria-label={t('common.close')}
         onClick={() => setOpen(false)}
       />
       <div className="category-sheet" role="dialog" aria-modal="true" aria-label={title}>
@@ -134,7 +139,7 @@ export function SelectSheet({
             type="button"
             className="category-sheet__close"
             onClick={() => setOpen(false)}
-            aria-label="Закрыть"
+            aria-label={t('common.close')}
           >
             <X size={20} />
           </button>
@@ -146,7 +151,7 @@ export function SelectSheet({
               <Search size={18} className="category-sheet__search-icon" aria-hidden />
               <input
                 className="category-sheet__search-input"
-                placeholder={searchPlaceholder}
+                placeholder={resolvedSearchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 autoFocus

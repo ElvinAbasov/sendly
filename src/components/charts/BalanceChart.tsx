@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { BalancePoint } from '../../types'
+import { useI18n } from '../../i18n/I18nContext'
 import { formatAmount, formatDate } from '../../utils/format'
 
 interface BalanceChartProps {
@@ -15,10 +16,12 @@ interface BalanceChartProps {
 }
 
 export function BalanceChart({ data, currency }: BalanceChartProps) {
+  const { t } = useI18n()
+
   if (data.length < 2) {
     return (
       <div className="chart-empty">
-        <p>Добавьте операции, чтобы увидеть график</p>
+        <p>{t('empty.noTransactions')}</p>
       </div>
     )
   }

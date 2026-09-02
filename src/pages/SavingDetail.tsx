@@ -10,6 +10,8 @@ import { SavingFormModal } from '../components/savings/SavingFormModal'
 import { SavingOperationModal } from '../components/savings/SavingOperationModal'
 import { SavingHistoryItem } from '../components/savings/SavingHistoryItem'
 import { GoalSuccessAnimation } from '../components/savings/GoalSuccessAnimation'
+import { useI18n } from '../i18n/I18nContext'
+import { getErrorMessage } from '../utils/errorMessage'
 import {
   computeBalanceAfterHistory,
   getSavingProgress,
@@ -19,6 +21,7 @@ import { formatAmount } from '../utils/format'
 import type { SavingOperationType } from '../types'
 
 export function SavingDetail() {
+  const { t } = useI18n()
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -40,7 +43,6 @@ export function SavingDetail() {
   const [operationType, setOperationType] = useState<SavingOperationType | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
   const [deleteError, setDeleteError] = useState('')
-
   const [operationError, setOperationError] = useState('')
 
   const goal = savingGoals.find((g) => g.id === id)
@@ -85,10 +87,10 @@ export function SavingDetail() {
           <button className="back-btn" onClick={() => navigate('/savings')}>
             <ArrowLeft size={20} />
           </button>
-          <h1 className="page__title">Накопление</h1>
+          <h1 className="page__title">{t('savings.detail.title')}</h1>
         </header>
         <Card>
-          <p className="empty-text">Накопление не найдено</p>
+          <p className="empty-text">{t('savings.detail.notFound')}</p>
         </Card>
       </div>
     )
@@ -121,7 +123,7 @@ export function SavingDetail() {
         setShowSuccess(true)
       }
     } catch (err) {
-      setOperationError(err instanceof Error ? err.message : 'Не удалось выполнить операцию')
+      setOperationError(getErrorMessage(err, t, 'savings.detail.operationFailed'))
       throw err
     }
   }
@@ -132,7 +134,7 @@ export function SavingDetail() {
       await deleteSaving(goal.id, returnFunds)
       navigate('/savings')
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Ошибка удаления')
+      setDeleteError(getErrorMessage(err, t, 'savings.detail.deleteFailed'))
     }
   }
 
@@ -154,10 +156,10 @@ export function SavingDetail() {
           <ArrowLeft size={20} />
         </button>
         <div className="saving-detail__header-actions">
-          <button className="back-btn" onClick={() => setShowEdit(true)} aria-label="Редактировать">
+          <button className="back-btn" onClick={() => setShowEdit(true)} aria-label={t('savings.detail.editAria')}>
             <Pencil size={18} />
           </button>
-          <button className="back-btn" onClick={() => setShowDelete(true)} aria-label="Удалить">
+          <button className="back-btn" onClick={() => setShowDelete(true)} aria-label={t('savings.detail.deleteAria')}>
             <Trash2 size={18} />
           </button>
         </div>
@@ -167,7 +169,7 @@ export function SavingDetail() {
 
       <div className="saving-detail__actions">
         <Button fullWidth size="lg" onClick={() => setOperationType('deposit')}>
-          Пополнить
+          {t('savings.detail.deposit')}
         </Button>
         <Button
           fullWidth
@@ -176,7 +178,7 @@ export function SavingDetail() {
           onClick={() => setOperationType('withdraw')}
           disabled={goal.currentAmount <= 0}
         >
-          Забрать
+          {t('savings.detail.withdraw')}
         </Button>
       </div>
 
@@ -188,15 +190,15 @@ export function SavingDetail() {
           disabled={goal.currentAmount <= 0}
         >
           <ArrowRightLeft size={18} />
-          Перевести в другое накопление
+          {t('savings.detail.transferToOther')}
         </Button>
       )}
 
       <section>
-        <h3 className="section-title">История</h3>
+        <h3 className="section-title">{t('savings.detail.history')}</h3>
         {history.length === 0 ? (
           <Card>
-            <p className="empty-text">Пока нет операций</p>
+            <p className="empty-text">{t('savings.detail.noOperations')}</p>
           </Card>
         ) : (
           <Card padding="sm" className="saving-history-list">
@@ -240,12 +242,13 @@ export function SavingDetail() {
         <p className="input-group__error saving-detail__error">{operationError}</p>
       )}
 
-      <Modal open={showDelete} onClose={() => setShowDelete(false)} title="Удалить накопление?">
+      <Modal open={showDelete} onClose={() => setShowDelete(false)} title={t('savings.detail.deleteTitle')}>
         {goal.currentAmount > 0 ? (
           <>
             <p className="modal-text">
-              В накоплении {formatAmount(goal.currentAmount, user.currency)}.
-              Сначала верните деньги в доступный баланс.
+              {t('savings.detail.deleteWithFunds', {
+                amount: formatAmount(goal.currentAmount, user.currency),
+              })}
             </p>
             {deleteError && <p className="input-error">{deleteError}</p>}
             <div className="modal-actions modal-actions--stack">
@@ -254,28 +257,30 @@ export function SavingDetail() {
                 onClick={() => handleDelete(true)}
                 loading={operationInProgress}
               >
-                Вернуть {formatAmount(goal.currentAmount, user.currency)} и удалить
+                {t('savings.detail.returnAndDelete', {
+                  amount: formatAmount(goal.currentAmount, user.currency),
+                })}
               </Button>
               <Button fullWidth variant="secondary" onClick={() => setShowDelete(false)}>
-                Отмена
+                {t('common.cancel')}
               </Button>
             </div>
           </>
         ) : (
           <>
             <p className="modal-text">
-              Вы уверены, что хотите удалить «{goal.name}»? Это действие нельзя отменить.
+              {t('savings.detail.deleteConfirm', { name: goal.name })}
             </p>
             <div className="modal-actions">
               <Button variant="secondary" onClick={() => setShowDelete(false)}>
-                Отмена
+                {t('common.cancel')}
               </Button>
               <Button
                 variant="danger"
                 onClick={() => handleDelete(false)}
                 loading={operationInProgress}
               >
-                Удалить
+                {t('common.delete')}
               </Button>
             </div>
           </>

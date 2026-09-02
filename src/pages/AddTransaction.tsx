@@ -6,11 +6,13 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { AmountInput } from '../components/ui/AmountInput'
 import { CategorySelect, getDefaultCategory } from '../components/ui/CategorySelect'
+import { useI18n } from '../i18n/I18nContext'
 import { isCategoryValidForKind } from '../utils/categories'
 import { parseAmount, toInputDate, parseInputDateToISO } from '../utils/format'
 import type { TransactionType } from '../types'
 
 export function AddTransaction() {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const { user, activePeriod, addTransaction, settings } = useApp()
 
@@ -37,16 +39,16 @@ export function AddTransaction() {
     const parsed = parseAmount(amount)
 
     if (!amount || parsed <= 0) {
-      newErrors.amount = 'Введите сумму больше 0'
+      newErrors.amount = t('validation.amountRequired')
     }
     if (!title.trim()) {
-      newErrors.title = 'Введите название'
+      newErrors.title = t('validation.titleRequired')
     }
     if (!category) {
-      newErrors.category = 'Выберите категорию'
+      newErrors.category = t('validation.categoryRequired')
     }
     if (!date) {
-      newErrors.date = 'Выберите дату'
+      newErrors.date = t('validation.dateRequired')
     }
 
     setErrors(newErrors)
@@ -69,7 +71,7 @@ export function AddTransaction() {
       navigate('/')
     } catch (err) {
       console.error(err)
-      setErrors({ form: 'Ошибка сохранения. Попробуйте снова.' })
+      setErrors({ form: t('addTransaction.saveError') })
     } finally {
       setSaving(false)
     }
@@ -80,10 +82,10 @@ export function AddTransaction() {
   return (
     <div className="page add-page">
       <header className="page__header page__header--row">
-        <button className="back-btn" onClick={() => navigate(-1)} aria-label="Назад">
+        <button className="back-btn" onClick={() => navigate(-1)} aria-label={t('common.back')}>
           <ArrowLeft size={22} />
         </button>
-        <h1 className="page__title">Новая операция</h1>
+        <h1 className="page__title">{t('addTransaction.title')}</h1>
         <div style={{ width: 40 }} />
       </header>
 
@@ -92,13 +94,13 @@ export function AddTransaction() {
           className={`type-toggle__btn ${type === 'expense' ? 'type-toggle__btn--active type-toggle__btn--expense' : ''}`}
           onClick={() => setType('expense')}
         >
-          Расход
+          {t('addTransaction.expense')}
         </button>
         <button
           className={`type-toggle__btn ${type === 'income' ? 'type-toggle__btn--active type-toggle__btn--income' : ''}`}
           onClick={() => setType('income')}
         >
-          Доход
+          {t('addTransaction.income')}
         </button>
       </div>
 
@@ -110,7 +112,7 @@ export function AddTransaction() {
       />
 
       <CategorySelect
-        label="Категория"
+        label={t('common.category')}
         mode={type === 'expense' ? 'expense' : 'income'}
         value={category}
         onChange={setCategory}
@@ -119,22 +121,22 @@ export function AddTransaction() {
       />
 
       <Input
-        label="Название"
+        label={t('addTransaction.titleLabel')}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="Например: Обед в кафе"
+        placeholder={t('addTransaction.titlePlaceholder')}
         error={errors.title}
       />
 
       <Input
-        label="Комментарий"
+        label={t('addTransaction.commentLabel')}
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="Необязательно"
+        placeholder={t('common.optional')}
       />
 
       <Input
-        label="Дата"
+        label={t('addTransaction.dateLabel')}
         type="date"
         value={date}
         onChange={(e) => setDate(e.target.value)}
@@ -144,7 +146,7 @@ export function AddTransaction() {
       {errors.form && <span className="input-group__error">{errors.form}</span>}
 
       <Button fullWidth size="lg" onClick={handleSave} loading={saving}>
-        Сохранить
+        {t('common.save')}
       </Button>
     </div>
   )

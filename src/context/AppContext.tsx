@@ -36,6 +36,7 @@ import type {
 
 interface AppState {
   loading: boolean
+  initError: string | null
   isAuthenticated: boolean
   user: User | null
   periods: Period[]
@@ -125,6 +126,7 @@ const AppContext = createContext<AppContextType | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
+  const [initError, setInitError] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [periods, setPeriods] = useState<Period[]>([])
@@ -203,7 +205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const withOperationLock = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
-    if (operationLock.current) throw new Error('Операция уже выполняется')
+    if (operationLock.current) throw new Error('errors.app.operationInProgress')
     operationLock.current = true
     setOperationInProgress(true)
     try {
@@ -260,11 +262,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const init = useCallback(async () => {
     setLoading(true)
+    setInitError(null)
     try {
       await initDataService()
       await refresh()
     } catch (err) {
       console.error('Init error:', err)
+      const key =
+        err instanceof Error && err.message.startsWith('errors.')
+          ? err.message
+          : 'errors.init.failed'
+      setInitError(key)
     } finally {
       setLoading(false)
     }
@@ -317,7 +325,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const setupPeriod = async (name: string, initialCapital: number) => {
-    if (!user) throw new Error('Не авторизован')
+    if (!user) throw new Error('errors.auth.notAuthorized')
     const p = await createPeriod(user.id, name, initialCapital)
     await refresh()
     setActivePeriod(p)
@@ -332,7 +340,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addTransaction = async (
     data: Omit<Transaction, 'id' | 'createdAt' | 'periodId' | 'userId'>,
   ) => {
-    if (!activePeriod || !user) throw new Error('Нет активного периода')
+    if (!activePeriod || !user) throw new Error('errors.app.noActivePeriod')
     return withOperationLock(async () => {
       await createTransaction({ ...data, periodId: activePeriod.id, userId: user.id })
       await refresh()
@@ -392,7 +400,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const depositToSavingAction = async (savingId: string, amount: number) => {
-    if (!activePeriod) throw new Error('Нет активного периода')
+    if (!activePeriod) throw new Error('errors.app.noActivePeriod')
     return withOperationLock(async () => {
       const goal = await dataService.depositToSaving(savingId, amount, activePeriod.id)
       await refresh()
@@ -401,7 +409,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const withdrawFromSavingAction = async (savingId: string, amount: number) => {
-    if (!activePeriod) throw new Error('Нет активного периода')
+    if (!activePeriod) throw new Error('errors.app.noActivePeriod')
     return withOperationLock(async () => {
       const goal = await dataService.withdrawFromSaving(savingId, amount, activePeriod.id)
       await refresh()
@@ -414,7 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     destinationId: string,
     amount: number,
   ) => {
-    if (!activePeriod) throw new Error('Нет активного периода')
+    if (!activePeriod) throw new Error('errors.app.noActivePeriod')
     await withOperationLock(async () => {
       await dataService.transferBetweenSavings(
         sourceId,
@@ -427,14 +435,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const deleteSavingAction = async (savingId: string, returnFunds: boolean) => {
-    if (!activePeriod) throw new Error('Нет активного периода')
+    if (!activePeriod) throw new Error('errors.app.noActivePeriod')
     await withOperationLock(async () => {
       if (returnFunds) {
         await dataService.deleteSavingWithReturn(savingId, activePeriod.id)
       } else {
         const goal = savingGoals.find((g) => g.id === savingId)
         if (goal && goal.currentAmount > 0) {
-          throw new Error('Сначала верните деньги в доступный баланс')
+          throw new Error('errors.app.returnFundsFirst')
         }
         await dataService.deleteSavingGoal(savingId)
       }
@@ -448,9 +456,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const confirmAutoDepositAction = async (savingId: string) => {
-    if (!activePeriod) throw new Error('Нет активного периода')
+    if (!activePeriod) throw new Error('errors.app.noActivePeriod')
     const goal = savingGoals.find((g) => g.id === savingId)
-    if (!goal?.autoDepositAmount) throw new Error('Автопополнение не настроено')
+    if (!goal?.autoDepositAmount) throw new Error('errors.app.autoDepositNotConfigured')
     return withOperationLock(async () => {
       const result = await dataService.depositToSaving(
         savingId,
@@ -526,6 +534,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppContextType = {
     loading,
+    initError,
     isAuthenticated,
     user,
     periods,

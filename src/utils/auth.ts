@@ -7,6 +7,6 @@ export function validateEmail(email: string): boolean {
 }
 
 export function validatePassword(password: string): string | null {
-  if (password.length < 8) return 'Пароль должен быть не менее 8 символов'
+  if (password.length < 8) return 'auth.validation.passwordMinLength'
   return null
 }

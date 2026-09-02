@@ -1,6 +1,7 @@
 import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight } from 'lucide-react'
 import type { Transaction } from '../../types'
-import { SAVING_TRANSACTION_LABELS } from '../../constants/savings'
+import { getSavingTransactionLabel } from '../../constants/savings'
+import { useI18n } from '../../i18n/I18nContext'
 import { formatAmount, formatDate } from '../../utils/format'
 
 interface SavingHistoryItemProps {
@@ -18,6 +19,7 @@ export function SavingHistoryItem({
   savingNames,
   balanceAfter,
 }: SavingHistoryItemProps) {
+  const { t } = useI18n()
   const isDeposit =
     transaction.type === 'saving_deposit' && transaction.savingId === savingId
   const isWithdraw =
@@ -27,7 +29,7 @@ export function SavingHistoryItem({
   const isTransferIn =
     transaction.type === 'saving_transfer' && transaction.destinationSavingId === savingId
 
-  let label = SAVING_TRANSACTION_LABELS[transaction.type] ?? transaction.title
+  let label = getSavingTransactionLabel(transaction.type, t) ?? transaction.title
   let sign = '+'
   let variant: 'income' | 'expense' | 'neutral' = 'income'
 
@@ -35,13 +37,17 @@ export function SavingHistoryItem({
     sign = '+'
     variant = 'income'
     if (isTransferIn && transaction.sourceSavingId) {
-      label = `Из «${savingNames[transaction.sourceSavingId] ?? 'накопления'}»`
+      label = t('savings.historyItem.fromSaving', {
+        name: savingNames[transaction.sourceSavingId] ?? t('savings.historyItem.fallbackSaving'),
+      })
     }
   } else if (isWithdraw || isTransferOut) {
     sign = '−'
     variant = 'expense'
     if (isTransferOut && transaction.destinationSavingId) {
-      label = `В «${savingNames[transaction.destinationSavingId] ?? 'накопление'}»`
+      label = t('savings.historyItem.toSaving', {
+        name: savingNames[transaction.destinationSavingId] ?? t('savings.historyItem.fallbackSavingAcc'),
+      })
     }
   }
 

@@ -18,6 +18,7 @@ import {
   periodTransactionsFilter,
 } from '../utils/pocketbaseFilters'
 import { toInputDate } from '../utils/format'
+import { translateKey } from '../i18n'
 import { generateId } from '../utils/id'
 import { calculatePeriodStats } from '../utils/calculations'
 import {
@@ -115,7 +116,7 @@ class PocketBaseDataService implements IDataService {
   private requireAuthRecord(): RecordModel {
     const record = getPb().authStore.record
     if (!getPb().authStore.isValid || !record) {
-      throw new Error('Не авторизован')
+      throw new Error('errors.auth.notAuthorized')
     }
     return record as RecordModel
   }
@@ -171,7 +172,7 @@ class PocketBaseDataService implements IDataService {
     currency: string,
   ): Promise<User> {
     const normalizedEmail = normalizeEmail(email)
-    if (!normalizedEmail) throw new AuthError('email', 'Введите email')
+    if (!normalizedEmail) throw new AuthError('email', 'auth.validation.emailRequired')
 
     try {
       await getPb().collection('users').create({
@@ -192,13 +193,13 @@ class PocketBaseDataService implements IDataService {
     const normalizedEmail = normalizeEmail(email)
 
     if (!normalizedEmail && !password) {
-      throw new AuthError('both', 'Введите email и пароль')
+      throw new AuthError('both', 'auth.validation.emailAndPasswordRequired')
     }
     if (!normalizedEmail) {
-      throw new AuthError('email', 'Введите email')
+      throw new AuthError('email', 'auth.validation.emailRequired')
     }
     if (!password) {
-      throw new AuthError('password', 'Введите пароль')
+      throw new AuthError('password', 'auth.validation.passwordRequired')
     }
 
     let response: Response
@@ -212,17 +213,18 @@ class PocketBaseDataService implements IDataService {
       if (isLocalPocketBaseUrl()) {
         throw new AuthError(
           'form',
-          'С телефона PocketBase на вашем компьютере недоступен. Нужен сервер в интернете (Fly.io) или откройте Spendly на ПК.',
+          'auth.errors.networkMobile',
         )
       }
       throw new AuthError(
         'form',
-        'Не удалось подключиться к серверу. Проверьте интернет и что PocketBase запущен.',
+        'auth.errors.networkOffline',
       )
     }
 
     const payload = (await response.json().catch(() => ({}))) as {
       field?: AuthError['field']
+      code?: string
       message?: string
       token?: string
       record?: RecordModel
@@ -232,13 +234,21 @@ class PocketBaseDataService implements IDataService {
       if (response.status === 404) {
         throw new AuthError(
           'form',
-          'Сервис входа недоступен. Перезапустите PocketBase с поддержкой hooks.',
+          'auth.errors.authServiceUnavailable',
         )
       }
-      throw new AuthError(
-        payload.field ?? 'form',
-        payload.message ?? 'Не удалось войти. Проверьте email и пароль.',
-      )
+      const errorKey =
+        payload.code ??
+        (payload.field === 'email'
+          ? 'auth.errors.userNotFound'
+          : payload.field === 'password'
+            ? 'auth.errors.wrongPassword'
+            : payload.field === 'both'
+              ? 'auth.validation.emailAndPasswordRequired'
+              : payload.message?.startsWith('auth.')
+                ? payload.message
+                : 'auth.errors.loginFailed')
+      throw new AuthError(payload.field ?? 'form', errorKey)
     }
 
     getPb().authStore.save(payload.token, payload.record)
@@ -256,15 +266,36 @@ class PocketBaseDataService implements IDataService {
 
   private mapRegisterError(err: unknown): AuthError {
     if (err && typeof err === 'object' && 'data' in err) {
-      const data = (err as { data?: { data?: Record<string, { message?: string }> } }).data?.data
-      if (data?.email?.message?.includes('unique') || data?.email?.message?.includes('exists')) {
-        return new AuthError('email', 'Пользователь с таким email уже существует')
+      const data = (err as {
+        data?: { data?: Record<string, { message?: string; code?: string }> }
+      }).data?.data
+
+      if (data?.email) {
+        const { code, message } = data.email
+        if (
+          code === 'validation_not_unique' ||
+          message?.includes('unique') ||
+          message?.includes('exists')
+        ) {
+          return new AuthError('email', 'auth.errors.emailExists')
+        }
+        if (code === 'validation_is_email') {
+          return new AuthError('email', 'auth.validation.emailInvalid')
+        }
       }
-      if (data?.password?.message) {
-        return new AuthError('password', data.password.message)
+
+      if (data?.password) {
+        const { code } = data.password
+        if (code === 'validation_min_text_constraint') {
+          return new AuthError('password', 'auth.validation.passwordMinLength')
+        }
+      }
+
+      if (data?.name?.code === 'validation_required') {
+        return new AuthError('form', 'auth.validation.nameRequired')
       }
     }
-    return new AuthError('form', 'Не удалось создать аккаунт')
+    return new AuthError('form', 'auth.errors.registerFailed')
   }
 
   private async ensureSettingsRecord(userId: string): Promise<void> {
@@ -348,7 +379,7 @@ class PocketBaseDataService implements IDataService {
   async saveTransaction(transaction: Transaction): Promise<void> {
     return this.withMutex(async () => {
       if (isSavingTransaction(transaction.type)) {
-        throw new Error('Операции накоплений нельзя редактировать напрямую')
+        throw new Error('errors.app.savingTxNotEditable')
       }
       await getPb().collection('transactions').update(transaction.id, transactionToRecord(transaction))
     })
@@ -358,9 +389,9 @@ class PocketBaseDataService implements IDataService {
     return this.withMutex(async () => {
       const userId = this.requireUserId()
       const record = await getPb().collection('transactions').getOne(id)
-      if (String(record.owner) !== userId) throw new Error('Операция не найдена')
+      if (String(record.owner) !== userId) throw new Error('errors.app.transactionNotFound')
       if (isSavingTransaction(record.type as Transaction['type'])) {
-        throw new Error('Операции накоплений нельзя удалить. Используйте снятие из накопления.')
+        throw new Error('errors.app.savingTxNotDeletable')
       }
       await getPb().collection('transactions').delete(id)
     })
@@ -401,7 +432,7 @@ class PocketBaseDataService implements IDataService {
   private async getAvailableBalance(periodId: string): Promise<number> {
     const periods = await this.getPeriods()
     const period = periods.find((item) => item.id === periodId)
-    if (!period) throw new Error('Период не найден')
+    if (!period) throw new Error('errors.app.periodNotFound')
 
     const transactions = await this.getTransactions()
     const totalInSavings = calculateLockedSavingsFromTransactions(transactions)
@@ -464,7 +495,7 @@ class PocketBaseDataService implements IDataService {
     const userId = this.requireUserId()
     const goals = await this.getSyncedSavingGoals(userId)
     const goal = goals.find((item) => item.id === id)
-    if (!goal) throw new Error('Накопление не найдено')
+    if (!goal) throw new Error('errors.app.savingNotFound')
 
     const updated: SavingGoal = {
       ...goal,
@@ -501,15 +532,15 @@ class PocketBaseDataService implements IDataService {
     amount: number,
     periodId: string,
   ): Promise<SavingGoal> {
-    if (amount <= 0) throw new Error('Сумма должна быть больше 0')
+    if (amount <= 0) throw new Error('errors.app.amountMustBePositive')
 
     const userId = this.requireUserId()
     const goals = await this.getSyncedSavingGoals(userId)
     const goal = goals.find((item) => item.id === savingId)
-    if (!goal) throw new Error('Накопление не найдено')
+    if (!goal) throw new Error('errors.app.savingNotFound')
 
     const available = await this.getAvailableBalance(periodId)
-    if (amount > available) throw new Error('Недостаточно доступных средств')
+    if (amount > available) throw new Error('errors.app.insufficientFunds')
 
     const newAmount = goal.currentAmount + amount
     const now = new Date().toISOString()
@@ -530,8 +561,8 @@ class PocketBaseDataService implements IDataService {
       periodId,
       type: 'saving_deposit',
       amount,
-      category: 'Накопления',
-      title: `Пополнение: ${goal.name}`,
+      category: translateKey('transactionTypes.savingsCategory'),
+      title: `${translateKey('transactionTypes.saving_deposit')}: ${goal.name}`,
       note: '',
       date: now,
       createdAt: now,
@@ -557,13 +588,13 @@ class PocketBaseDataService implements IDataService {
     amount: number,
     periodId: string,
   ): Promise<SavingGoal> {
-    if (amount <= 0) throw new Error('Сумма должна быть больше 0')
+    if (amount <= 0) throw new Error('errors.app.amountMustBePositive')
 
     const userId = this.requireUserId()
     const goals = await this.getSyncedSavingGoals(userId)
     const goal = goals.find((item) => item.id === savingId)
-    if (!goal) throw new Error('Накопление не найдено')
-    if (amount > goal.currentAmount) throw new Error('Недостаточно средств в накоплении')
+    if (!goal) throw new Error('errors.app.savingNotFound')
+    if (amount > goal.currentAmount) throw new Error('errors.app.insufficientSavingFunds')
 
     const newAmount = goal.currentAmount - amount
     const now = new Date().toISOString()
@@ -584,8 +615,8 @@ class PocketBaseDataService implements IDataService {
       periodId,
       type: 'saving_withdraw',
       amount,
-      category: 'Накопления',
-      title: `Снятие: ${goal.name}`,
+      category: translateKey('transactionTypes.savingsCategory'),
+      title: `${translateKey('transactionTypes.saving_withdraw')}: ${goal.name}`,
       note: '',
       date: now,
       createdAt: now,
@@ -605,15 +636,15 @@ class PocketBaseDataService implements IDataService {
     periodId: string,
   ): Promise<void> {
     return this.withMutex(async () => {
-      if (amount <= 0) throw new Error('Сумма должна быть больше 0')
-      if (sourceId === destinationId) throw new Error('Выберите другое накопление')
+      if (amount <= 0) throw new Error('errors.app.amountMustBePositive')
+      if (sourceId === destinationId) throw new Error('errors.app.selectOtherSaving')
 
       const userId = this.requireUserId()
       const goals = await this.getSyncedSavingGoals(userId)
       const source = goals.find((item) => item.id === sourceId)
       const destination = goals.find((item) => item.id === destinationId)
-      if (!source || !destination) throw new Error('Накопление не найдено')
-      if (amount > source.currentAmount) throw new Error('Недостаточно средств в накоплении')
+      if (!source || !destination) throw new Error('errors.app.savingNotFound')
+      if (amount > source.currentAmount) throw new Error('errors.app.insufficientSavingFunds')
 
       const now = new Date().toISOString()
       const sourceNewAmount = source.currentAmount - amount
@@ -637,8 +668,8 @@ class PocketBaseDataService implements IDataService {
         periodId,
         type: 'saving_transfer',
         amount,
-        category: 'Накопления',
-        title: `Перевод: ${source.name} → ${destination.name}`,
+        category: translateKey('transactionTypes.savingsCategory'),
+        title: `${translateKey('transactionTypes.saving_transfer')}: ${source.name} → ${destination.name}`,
         note: '',
         date: now,
         createdAt: now,
@@ -661,7 +692,7 @@ class PocketBaseDataService implements IDataService {
       const userId = this.requireUserId()
       const goals = await this.getSyncedSavingGoals(userId)
       const goal = goals.find((item) => item.id === savingId)
-      if (!goal) throw new Error('Накопление не найдено')
+      if (!goal) throw new Error('errors.app.savingNotFound')
 
       if (goal.currentAmount > 0) {
         await this.executeWithdrawFromSaving(savingId, goal.currentAmount, periodId)
@@ -777,7 +808,7 @@ class PocketBaseDataService implements IDataService {
           }
         }
       } catch (err) {
-        throw err instanceof Error ? err : new Error('Ошибка импорта данных')
+        throw err instanceof Error ? err : new Error('errors.import.failed')
       }
     })
   }
@@ -788,39 +819,39 @@ class PocketBaseDataService implements IDataService {
     currentUser: User | null,
   ): void {
     if (!data.version || !Array.isArray(data.periods) || !Array.isArray(data.transactions)) {
-      throw new Error('Неверный формат файла')
+      throw new Error('errors.import.invalidFormat')
     }
 
     if (data.user?.id && currentUser && data.user.id !== currentUser.id) {
-      throw new Error('Файл принадлежит другому пользователю')
+      throw new Error('errors.import.wrongUser')
     }
 
     const goalIds = new Set((data.savingGoals ?? []).map((goal) => goal.id))
     for (const tx of data.transactions) {
       if (!tx.id || !tx.type || typeof tx.amount !== 'number' || tx.amount < 0) {
-        throw new Error('Некорректные операции в файле')
+        throw new Error('errors.import.invalidTransactions')
       }
       if (isSavingTransaction(tx.type)) {
         if (tx.type === 'saving_transfer') {
           if (!tx.sourceSavingId || !tx.destinationSavingId) {
-            throw new Error('Некорректные переводы между накоплениями в файле')
+            throw new Error('errors.import.invalidTransfers')
           }
           if (!goalIds.has(tx.sourceSavingId) || !goalIds.has(tx.destinationSavingId)) {
-            throw new Error('Перевод ссылается на отсутствующее накопление')
+            throw new Error('errors.import.missingSavingTransfer')
           }
         } else if (tx.savingId && !goalIds.has(tx.savingId)) {
-          throw new Error('Операция накопления ссылается на отсутствующую цель')
+          throw new Error('errors.import.missingSavingGoal')
         }
       }
     }
 
     const activePeriods = data.periods.filter((period) => period.endDate === null)
     if (activePeriods.length > 1) {
-      throw new Error('В файле более одного активного периода')
+      throw new Error('errors.import.multipleActivePeriods')
     }
 
     if (data.periods.some((period) => !period.id || !period.name)) {
-      throw new Error('Некорректные периоды в файле')
+      throw new Error('errors.import.invalidPeriods')
     }
   }
 
@@ -876,7 +907,7 @@ export async function createTransaction(
   data: Omit<Transaction, 'id' | 'createdAt'>,
 ): Promise<Transaction> {
   if (isSavingTransaction(data.type)) {
-    throw new Error('Используйте операции накоплений для этого типа транзакции')
+    throw new Error('errors.app.useSavingOperations')
   }
 
   const record = await getPb().collection('transactions').create({

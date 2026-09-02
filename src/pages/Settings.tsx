@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Sun, Download, Upload, Trash2, User, Calendar,
-  ChevronRight, AlertTriangle, LogOut, Smartphone, CheckCircle2,
+  ChevronRight, AlertTriangle, LogOut, Smartphone, CheckCircle2, Languages,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAppInstall } from '../hooks/useAppInstall'
@@ -13,10 +13,13 @@ import { Button } from '../components/ui/Button'
 import { Toggle } from '../components/ui/Toggle'
 import { Modal } from '../components/ui/Modal'
 import { CURRENCIES } from '../constants/categories'
+import { useI18n } from '../i18n/I18nContext'
+import { getErrorMessage } from '../utils/errorMessage'
 import { formatAmount, formatDateFull, parseAmount } from '../utils/format'
 import type { ExportData } from '../types'
 
 export function Settings() {
+  const { t, locale, setLocale } = useI18n()
   const navigate = useNavigate()
   const {
     user,
@@ -34,6 +37,7 @@ export function Settings() {
   } = useApp()
 
   const fileRef = useRef<HTMLInputElement>(null)
+  const clearConfirmWord = t('settings.data.clearConfirmWord')
 
   const [name, setName] = useState(user?.name ?? '')
   const [currency, setCurrency] = useState(user?.currency ?? 'USD')
@@ -66,11 +70,11 @@ export function Settings() {
   const handleCreatePeriod = async () => {
     const capital = parseAmount(periodCapital)
     if (!periodName.trim()) {
-      setPeriodError('Введите название периода')
+      setPeriodError(t('settings.periods.periodNameRequired'))
       return
     }
     if (capital < 0) {
-      setPeriodError('Капитал не может быть отрицательным')
+      setPeriodError(t('settings.periods.capitalNegative'))
       return
     }
     setSaving(true)
@@ -118,15 +122,13 @@ export function Settings() {
       if (data.user?.name) setName(data.user.name)
       if (data.user?.currency) setCurrency(data.user.currency)
     } catch (err) {
-      setImportError(
-        err instanceof Error ? err.message : 'Ошибка импорта. Проверьте формат файла.',
-      )
+      setImportError(getErrorMessage(err, t, 'settings.data.importError'))
     }
     if (fileRef.current) fileRef.current.value = ''
   }
 
   const handleClearData = async () => {
-    if (clearConfirm !== 'УДАЛИТЬ') return
+    if (clearConfirm !== clearConfirmWord) return
     setSaving(true)
     try {
       await clearAllData()
@@ -147,7 +149,7 @@ export function Settings() {
     setInstallMessage('')
     const result = await installApp()
     if (result === 'installed') {
-      setInstallMessage('Готово! Иконка Spendly появится на главном экране.')
+      setInstallMessage(t('settings.appInstall.successMessage'))
       return
     }
     if (result === 'ios-help') {
@@ -155,15 +157,15 @@ export function Settings() {
       return
     }
     if (result === 'apk') {
-      setInstallMessage('Откройте скачанный Spendly.apk и нажмите «Установить».')
+      setInstallMessage(t('settings.appInstall.apkMessage'))
       return
     }
     if (result === 'dismissed') {
-      setInstallMessage('Нажмите снова или скачайте APK — кнопка повторит загрузку.')
+      setInstallMessage(t('settings.appInstall.dismissedMessage'))
       return
     }
     if (!appInstalled) {
-      setInstallMessage('Откройте Spendly в Chrome на Android и попробуйте снова.')
+      setInstallMessage(t('settings.appInstall.androidRetryMessage'))
     }
   }
 
@@ -172,26 +174,26 @@ export function Settings() {
   return (
     <div className="page settings-page">
       <header className="page__header">
-        <h1 className="page__title">Настройки</h1>
+        <h1 className="page__title">{t('settings.title')}</h1>
       </header>
 
       <section className="settings-section">
         <h3 className="settings-section__title">
-          <User size={18} /> Профиль
+          <User size={18} /> {t('settings.profile.title')}
         </h3>
         <Card>
-          <Input label="Имя" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input label={t('settings.profile.nameLabel')} value={name} onChange={(e) => setName(e.target.value)} />
           <Input
-            label="Email"
+            label={t('common.email')}
             type="email"
             value={user?.email ?? ''}
             disabled
           />
           <Select
-            label="Валюта"
+            label={t('common.currency')}
             value={currency}
             onChange={setCurrency}
-            sheetTitle="Валюта"
+            sheetTitle={t('common.currency')}
             searchable
             options={CURRENCIES.map((c) => ({
               value: c.code,
@@ -200,18 +202,18 @@ export function Settings() {
             }))}
           />
           <Button onClick={handleSaveProfile} size="sm">
-            Сохранить
+            {t('settings.profile.save')}
           </Button>
         </Card>
       </section>
 
       <section className="settings-section">
         <h3 className="settings-section__title">
-          <Sun size={18} /> Тема
+          <Sun size={18} /> {t('settings.theme.title')}
         </h3>
         <Card>
           <Toggle
-            label={settings.theme === 'dark' ? 'Тёмная тема' : 'Светлая тема'}
+            label={settings.theme === 'dark' ? t('settings.theme.dark') : t('settings.theme.light')}
             checked={settings.theme === 'dark'}
             onChange={(checked) => setTheme(checked ? 'dark' : 'light')}
           />
@@ -220,7 +222,29 @@ export function Settings() {
 
       <section className="settings-section">
         <h3 className="settings-section__title">
-          <Calendar size={18} /> Периоды
+          <Languages size={18} /> {t('settings.language.title')}
+        </h3>
+        <Card>
+          {(['ru', 'en', 'az'] as const).map((code) => (
+            <button
+              key={code}
+              type="button"
+              className={`settings-row settings-row--choice${locale === code ? ' settings-row--active' : ''}`}
+              onClick={() => setLocale(code)}
+              aria-pressed={locale === code}
+            >
+              <span>{t(`settings.language.${code}`)}</span>
+              {locale === code && (
+                <CheckCircle2 size={18} className="settings-row__check" aria-hidden />
+              )}
+            </button>
+          ))}
+        </Card>
+      </section>
+
+      <section className="settings-section">
+        <h3 className="settings-section__title">
+          <Calendar size={18} /> {t('settings.periods.title')}
         </h3>
         <Card>
           {activePeriod && (
@@ -228,20 +252,20 @@ export function Settings() {
               <div>
                 <span className="period-current__name">{activePeriod.name}</span>
                 <span className="period-current__meta">
-                  С {formatDateFull(activePeriod.startDate)} ·{' '}
+                  {t('common.from')} {formatDateFull(activePeriod.startDate)} ·{' '}
                   {formatAmount(activePeriod.initialCapital, user?.currency ?? 'USD')}
                 </span>
               </div>
-              <span className="period-current__badge">Активный</span>
+              <span className="period-current__badge">{t('settings.periods.activeBadge')}</span>
             </div>
           )}
           <button className="settings-row" onClick={() => setShowNewPeriod(true)}>
-            <span>Новый период</span>
+            <span>{t('settings.periods.newPeriod')}</span>
             <ChevronRight size={18} />
           </button>
           {activePeriod && (
             <button className="settings-row" onClick={() => setShowClosePeriod(true)}>
-              <span>Закрыть текущий период</span>
+              <span>{t('settings.periods.closeCurrent')}</span>
               <ChevronRight size={18} />
             </button>
           )}
@@ -249,7 +273,7 @@ export function Settings() {
 
         {closedPeriods.length > 0 && (
           <Card className="period-history">
-            <h4 className="period-history__title">История периодов</h4>
+            <h4 className="period-history__title">{t('settings.periods.historyTitle')}</h4>
             {closedPeriods.map((p) => (
               <div key={p.id} className="period-history__item">
                 <span className="period-history__name">{p.name}</span>
@@ -265,14 +289,14 @@ export function Settings() {
       {showInstallSection && (
         <section className="settings-section">
           <h3 className="settings-section__title">
-            <Smartphone size={18} /> Приложение
+            <Smartphone size={18} /> {t('settings.appInstall.title')}
           </h3>
           <Card>
             {appInstalled ? (
               <div className="app-install-status">
                 <CheckCircle2 size={20} className="app-install-status__icon" />
                 <div>
-                  <span className="app-install-status__title">Приложение установлено</span>
+                  <span className="app-install-status__title">{t('settings.appInstall.installedTitle')}</span>
                   <span className="app-install-status__hint">{buttonHint}</span>
                 </div>
               </div>
@@ -293,27 +317,27 @@ export function Settings() {
       )}
 
       <section className="settings-section">
-        <h3 className="settings-section__title">Аккаунт</h3>
+        <h3 className="settings-section__title">{t('settings.account.title')}</h3>
         <Card>
           <button className="settings-row" onClick={handleLogout}>
             <LogOut size={18} />
-            <span>Выйти</span>
+            <span>{t('settings.account.logout')}</span>
             <ChevronRight size={18} />
           </button>
         </Card>
       </section>
 
       <section className="settings-section">
-        <h3 className="settings-section__title">Данные</h3>
+        <h3 className="settings-section__title">{t('settings.data.title')}</h3>
         <Card>
           <button className="settings-row" onClick={handleExport}>
             <Download size={18} />
-            <span>Экспорт в JSON</span>
+            <span>{t('settings.data.exportJson')}</span>
             <ChevronRight size={18} />
           </button>
           <button className="settings-row" onClick={() => fileRef.current?.click()}>
             <Upload size={18} />
-            <span>Импорт из JSON</span>
+            <span>{t('settings.data.importJson')}</span>
             <ChevronRight size={18} />
           </button>
           <input
@@ -331,21 +355,21 @@ export function Settings() {
             onClick={() => setShowClearData(true)}
           >
             <Trash2 size={18} />
-            <span>Удалить все данные</span>
+            <span>{t('settings.data.clearAll')}</span>
             <ChevronRight size={18} />
           </button>
         </Card>
       </section>
 
-      <Modal open={showNewPeriod} onClose={() => setShowNewPeriod(false)} title="Новый период">
+      <Modal open={showNewPeriod} onClose={() => setShowNewPeriod(false)} title={t('settings.periods.newPeriodModalTitle')}>
         <Input
-          label="Название"
+          label={t('common.name')}
           value={periodName}
           onChange={(e) => setPeriodName(e.target.value)}
-          placeholder="Например: Октябрь 2026"
+          placeholder={t('settings.periods.namePlaceholder')}
         />
         <Input
-          label="Стартовый капитал"
+          label={t('settings.periods.initialCapitalLabel')}
           type="number"
           inputMode="decimal"
           value={periodCapital}
@@ -355,61 +379,61 @@ export function Settings() {
         {periodError && <span className="input-group__error">{periodError}</span>}
         <p className="modal-hint">
           {activePeriod
-            ? 'Текущий период будет закрыт, история сохранится.'
-            : 'Создайте период для начала учёта.'}
+            ? t('settings.periods.closeActiveHint')
+            : t('settings.periods.createHint')}
         </p>
         <Button fullWidth onClick={handleCreatePeriod} loading={saving}>
-          Создать период
+          {t('settings.periods.createButton')}
         </Button>
       </Modal>
 
-      <Modal open={showClosePeriod} onClose={() => setShowClosePeriod(false)} title="Закрыть период?">
+      <Modal open={showClosePeriod} onClose={() => setShowClosePeriod(false)} title={t('settings.periods.closeModalTitle')}>
         <p className="modal-text">
-          Период «{activePeriod?.name}» будет закрыт. Все операции сохранятся в истории.
+          {t('settings.periods.closeModalText', { name: activePeriod?.name ?? '' })}
         </p>
         <div className="modal-actions">
           <Button variant="secondary" onClick={() => setShowClosePeriod(false)}>
-            Отмена
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleClosePeriod} loading={saving}>
-            Закрыть
+            {t('common.closePeriod')}
           </Button>
         </div>
       </Modal>
 
-      <Modal open={showIosInstall} onClose={() => setShowIosInstall(false)} title="Установка на iPhone">
+      <Modal open={showIosInstall} onClose={() => setShowIosInstall(false)} title={t('settings.appInstall.iosModalTitle')}>
         <ol className="install-steps">
-          <li>Откройте Spendly в <strong>Safari</strong></li>
-          <li>Нажмите «Поделиться» внизу экрана</li>
-          <li>Выберите «На экран Домой»</li>
-          <li>Нажмите «Добавить»</li>
+          <li>{t('settings.appInstall.iosStep1')}</li>
+          <li>{t('settings.appInstall.iosStep2')}</li>
+          <li>{t('settings.appInstall.iosStep3')}</li>
+          <li>{t('settings.appInstall.iosStep4')}</li>
         </ol>
         <Button fullWidth onClick={() => setShowIosInstall(false)}>
-          Понятно
+          {t('common.understood')}
         </Button>
       </Modal>
 
-      <Modal open={showClearData} onClose={() => setShowClearData(false)} title="Удалить все данные?">
+      <Modal open={showClearData} onClose={() => setShowClearData(false)} title={t('settings.data.clearModalTitle')}>
         <div className="danger-warning">
           <AlertTriangle size={24} />
-          <p>Это действие необратимо. Все операции, периоды и настройки будут удалены.</p>
+          <p>{t('settings.data.clearWarning')}</p>
         </div>
         <Input
-          label='Введите "УДАЛИТЬ" для подтверждения'
+          label={t('settings.data.clearConfirmLabel', { word: clearConfirmWord })}
           value={clearConfirm}
           onChange={(e) => setClearConfirm(e.target.value)}
         />
         <div className="modal-actions">
           <Button variant="secondary" onClick={() => setShowClearData(false)}>
-            Отмена
+            {t('common.cancel')}
           </Button>
           <Button
             variant="danger"
             onClick={handleClearData}
-            disabled={clearConfirm !== 'УДАЛИТЬ'}
+            disabled={clearConfirm !== clearConfirmWord}
             loading={saving}
           >
-            Удалить всё
+            {t('settings.data.clearAllButton')}
           </Button>
         </div>
       </Modal>

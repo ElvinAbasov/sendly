@@ -1,15 +1,5 @@
 import type { HistoryTypeFilter } from '../../types'
-
-const FILTERS: {
-  value: HistoryTypeFilter
-  label: string
-  modifier?: string
-}[] = [
-  { value: 'all', label: 'Все' },
-  { value: 'income', label: 'Доходы', modifier: 'income' },
-  { value: 'expense', label: 'Расходы', modifier: 'expense' },
-  { value: 'savings', label: 'Накопления', modifier: 'savings' },
-]
+import { useI18n } from '../../i18n/I18nContext'
 
 interface HistoryTypeFiltersProps {
   value: HistoryTypeFilter
@@ -17,9 +7,22 @@ interface HistoryTypeFiltersProps {
 }
 
 export function HistoryTypeFilters({ value, onChange }: HistoryTypeFiltersProps) {
+  const { t } = useI18n()
+
+  const filters: {
+    value: HistoryTypeFilter
+    label: string
+    modifier?: string
+  }[] = [
+    { value: 'all', label: t('historyFilters.all') },
+    { value: 'income', label: t('historyFilters.income'), modifier: 'income' },
+    { value: 'expense', label: t('historyFilters.expense'), modifier: 'expense' },
+    { value: 'savings', label: t('historyFilters.savings'), modifier: 'savings' },
+  ]
+
   return (
-    <div className="history-type-filters" role="tablist" aria-label="Тип операций">
-      {FILTERS.map((filter) => {
+    <div className="history-type-filters" role="tablist" aria-label={t('history.typeFilterAria')}>
+      {filters.map((filter) => {
         const isActive = value === filter.value
         return (
           <button

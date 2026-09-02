@@ -7,6 +7,7 @@ import {
   PRODUCTS,
 } from '../constants/app'
 import { Button } from '../components/ui/Button'
+import { useI18n } from '../i18n/I18nContext'
 
 function openWebApp() {
   window.location.href = APP_PUBLIC_URL
@@ -23,14 +24,16 @@ function downloadApk() {
 }
 
 export function DownloadPage() {
+  const { t } = useI18n()
+
   return (
     <div className="products-page">
       <header className="products-page__hero">
         <div className="products-page__logo">
           <Wallet size={36} />
         </div>
-        <h1 className="products-page__title">Мои приложения</h1>
-        <p className="products-page__subtitle">Скачайте и установите Spendly на телефон</p>
+        <h1 className="products-page__title">{t('download.pageTitle')}</h1>
+        <p className="products-page__subtitle">{t('download.pageSubtitle')}</p>
       </header>
 
       <div className="products-page__grid">
@@ -41,8 +44,8 @@ export function DownloadPage() {
                 {product.emoji}
               </span>
               <div>
-                <h2 className="product-card__name">{product.name}</h2>
-                <p className="product-card__desc">{product.description}</p>
+                <h2 className="product-card__name">{t('app.name')}</h2>
+                <p className="product-card__desc">{t('app.productDescription')}</p>
               </div>
             </div>
 
@@ -52,13 +55,10 @@ export function DownloadPage() {
                   <Globe size={22} />
                 </div>
                 <div className="product-block__body">
-                  <h3>На телефон через браузер</h3>
-                  <p>
-                    Откройте сайт в Chrome на Android. В приложении: Настройки → «Установить
-                    Spendly», или добавьте на главный экран через меню браузера.
-                  </p>
+                  <h3>{t('download.webBlockTitle')}</h3>
+                  <p>{t('download.webBlockText')}</p>
                   <Button fullWidth size="lg" onClick={openWebApp}>
-                    Открыть Spendly
+                    {t('download.openApp')}
                   </Button>
                 </div>
               </section>
@@ -68,14 +68,11 @@ export function DownloadPage() {
                   <Smartphone size={22} />
                 </div>
                 <div className="product-block__body">
-                  <h3>На телефон — APK файл</h3>
-                  <p>
-                    Скачайте Android-приложение. Откройте файл Spendly.apk и подтвердите
-                    установку.
-                  </p>
+                  <h3>{t('download.apkBlockTitle')}</h3>
+                  <p>{t('download.apkBlockText')}</p>
                   <Button fullWidth size="lg" variant="secondary" onClick={downloadApk}>
                     <Download size={18} style={{ marginRight: 8, verticalAlign: -3 }} />
-                    Скачать APK
+                    {t('download.downloadApk')}
                   </Button>
                   <a
                     className="product-block__link"
@@ -83,7 +80,7 @@ export function DownloadPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Страница релиза на GitHub
+                    {t('download.githubRelease')}
                   </a>
                 </div>
               </section>
@@ -94,18 +91,14 @@ export function DownloadPage() {
 
       <section className="product-block product-block--note">
         <div className="product-block__body">
-          <h3>⚠️ Вход с телефона</h3>
-          <p>
-            Сайт и APK не видят PocketBase на вашем компьютере (127.0.0.1). Для входа с телефона
-            нужен сервер PocketBase в интернете (например Fly.io). Пока используйте Spendly на
-            компьютере или настройте сервер — инструкция в файле <code>.env.example</code> в
-            репозитории.
-          </p>
+          <h3>⚠️ {t('download.mobileLoginTitle')}</h3>
+          <p>{t('download.mobileLoginText')}</p>
         </div>
       </section>
 
       <p className="products-page__footer">
-        Уже установили? <Link to="/login">Войти в аккаунт</Link>
+        {t('download.footerInstalled')}{' '}
+        <Link to="/login">{t('download.footerLogin')}</Link>
       </p>
     </div>
   )

@@ -4,6 +4,8 @@ import { Modal } from '../ui/Modal'
 import { AmountInput } from '../ui/AmountInput'
 import { Select } from '../ui/Select'
 import { Button } from '../ui/Button'
+import { useI18n } from '../../i18n/I18nContext'
+import { getErrorMessage } from '../../utils/errorMessage'
 import { formatAmount, parseAmount } from '../../utils/format'
 
 interface SavingOperationModalProps {
@@ -18,12 +20,6 @@ interface SavingOperationModalProps {
   onSubmit: (amount: number, destinationId?: string) => Promise<void>
 }
 
-const TITLES: Record<SavingOperationType, string> = {
-  deposit: 'Пополнить накопление',
-  withdraw: 'Забрать из накопления',
-  transfer: 'Перевод между накоплениями',
-}
-
 export function SavingOperationModal({
   open,
   onClose,
@@ -35,9 +31,16 @@ export function SavingOperationModal({
   loading,
   onSubmit,
 }: SavingOperationModalProps) {
+  const { t } = useI18n()
   const [amount, setAmount] = useState('')
   const [destinationId, setDestinationId] = useState('')
   const [error, setError] = useState('')
+
+  const titles: Record<SavingOperationType, string> = {
+    deposit: t('savings.operations.depositTitle'),
+    withdraw: t('savings.operations.withdrawTitle'),
+    transfer: t('savings.operations.transferTitle'),
+  }
 
   useEffect(() => {
     if (open) {
@@ -63,23 +66,23 @@ export function SavingOperationModal({
     if (loading) return
     const parsed = parseAmount(amount)
     if (!amount || parsed <= 0) {
-      setError('Введите сумму больше 0')
+      setError(t('validation.amountRequired'))
       return
     }
     if (type === 'deposit' && parsed > availableBalance) {
-      setError('Недостаточно доступных средств')
+      setError(t('validation.insufficientFunds'))
       return
     }
     if ((type === 'withdraw' || type === 'transfer') && parsed > goal.currentAmount) {
-      setError('Недостаточно средств в накоплении')
+      setError(t('validation.insufficientSavingFunds'))
       return
     }
     if (type === 'transfer' && !destinationId) {
-      setError('Выберите накопление для перевода')
+      setError(t('validation.selectTransferTarget'))
       return
     }
     if (type === 'transfer' && destinationId === goal.id) {
-      setError('Выберите другое накопление')
+      setError(t('validation.selectOtherSaving'))
       return
     }
 
@@ -87,14 +90,14 @@ export function SavingOperationModal({
     try {
       await onSubmit(parsed, type === 'transfer' ? destinationId : undefined)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось выполнить операцию')
+      setError(getErrorMessage(err, t, 'savings.detail.operationFailed'))
     }
   }
 
   const otherGoals = allGoals.filter((g) => g.id !== goal.id)
 
   return (
-    <Modal open={open} onClose={onClose} title={TITLES[type]}>
+    <Modal open={open} onClose={onClose} title={titles[type]}>
       <div className="saving-operation">
         <div className="saving-operation__goal">
           <span className="saving-operation__icon">{goal.icon}</span>
@@ -108,17 +111,19 @@ export function SavingOperationModal({
 
         {type === 'deposit' && (
           <p className="saving-operation__hint">
-            Доступно: {formatAmount(availableBalance, currency)}
+            {t('savings.operations.availableHint', {
+              amount: formatAmount(availableBalance, currency),
+            })}
           </p>
         )}
 
         {type === 'transfer' && (
           <Select
-            label="Куда перевести"
+            label={t('savings.operations.transferToLabel')}
             value={destinationId}
             onChange={setDestinationId}
-            sheetTitle="Куда перевести"
-            placeholder="Выберите накопление"
+            sheetTitle={t('savings.operations.transferToLabel')}
+            placeholder={t('savings.operations.transferToPlaceholder')}
             leadingIcon="💰"
             options={otherGoals.map((g) => ({
               value: g.id,
@@ -129,7 +134,7 @@ export function SavingOperationModal({
         )}
 
         <AmountInput
-          label="Сумма"
+          label={t('common.amount')}
           value={amount}
           onChange={setAmount}
           currency={currency}
@@ -154,18 +159,22 @@ export function SavingOperationModal({
                 className="quick-amounts__btn quick-amounts__btn--all"
                 onClick={() => setAmount(String(goal.currentAmount))}
               >
-                Всё
+                {t('common.everything')}
               </button>
             )}
           </div>
         )}
 
         <p className="saving-operation__limit">
-          Максимум: {formatAmount(maxAmount, currency)}
+          {t('savings.operations.maxHint', { amount: formatAmount(maxAmount, currency) })}
         </p>
 
         <Button fullWidth size="lg" onClick={handleSubmit} loading={loading}>
-          {type === 'deposit' ? 'Пополнить' : type === 'withdraw' ? 'Забрать' : 'Перевести'}
+          {type === 'deposit'
+            ? t('common.deposit')
+            : type === 'withdraw'
+              ? t('common.withdraw')
+              : t('common.transfer')}
         </Button>
       </div>
     </Modal>

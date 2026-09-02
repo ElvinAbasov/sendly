@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import type { CategoryStat } from '../../types'
+import { useI18n } from '../../i18n/I18nContext'
 import { formatAmount } from '../../utils/format'
 import { CATEGORY_ICONS } from '../../constants/categories'
 
@@ -14,10 +15,12 @@ interface CategoryChartProps {
 }
 
 export function CategoryChart({ data, currency }: CategoryChartProps) {
+  const { t } = useI18n()
+
   if (data.length === 0) {
     return (
       <div className="chart-empty">
-        <p>Нет расходов по категориям</p>
+        <p>{t('empty.noStatistics')}</p>
       </div>
     )
   }

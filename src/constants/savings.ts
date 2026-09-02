@@ -19,8 +19,11 @@ export const SAVING_ICONS = [
 
 export type SavingIcon = (typeof SAVING_ICONS)[number]
 
-export const SAVING_TRANSACTION_LABELS: Record<string, string> = {
-  saving_deposit: 'Пополнение',
-  saving_withdraw: 'Снятие',
-  saving_transfer: 'Перевод',
+export function getSavingTransactionLabel(
+  type: string,
+  t: (key: string) => string,
+): string {
+  const key = `transactionTypes.${type}`
+  const translated = t(key)
+  return translated !== key ? translated : type
 }

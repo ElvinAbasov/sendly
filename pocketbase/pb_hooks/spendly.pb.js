@@ -12,24 +12,24 @@ routerAdd('POST', '/api/spendly/auth/login', (e) => {
   const password = data.password || ''
 
   if (!email && !password) {
-    return e.json(400, { field: 'both', message: 'Введите email и пароль' })
+    return e.json(400, { field: 'both', code: 'auth.validation.emailAndPasswordRequired' })
   }
   if (!email) {
-    return e.json(400, { field: 'email', message: 'Введите email' })
+    return e.json(400, { field: 'email', code: 'auth.validation.emailRequired' })
   }
   if (!password) {
-    return e.json(400, { field: 'password', message: 'Введите пароль' })
+    return e.json(400, { field: 'password', code: 'auth.validation.passwordRequired' })
   }
 
   let record
   try {
     record = $app.findAuthRecordByEmail('users', email)
   } catch (_) {
-    return e.json(400, { field: 'email', message: 'Пользователь с таким email не найден' })
+    return e.json(400, { field: 'email', code: 'auth.errors.userNotFound' })
   }
 
   if (!record.validatePassword(password)) {
-    return e.json(400, { field: 'password', message: 'Неверный пароль' })
+    return e.json(400, { field: 'password', code: 'auth.errors.wrongPassword' })
   }
 
   return $apis.recordAuthResponse(e, record, 'password')

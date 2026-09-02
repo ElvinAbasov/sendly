@@ -6,10 +6,12 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { CURRENCIES } from '../constants/categories'
+import { useI18n } from '../i18n/I18nContext'
 import { normalizeEmail, validateEmail, validatePassword } from '../utils/auth'
 import { isAuthError } from '../utils/authErrors'
 
 export function Register() {
+  const { t } = useI18n()
   const { register } = useApp()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -23,13 +25,14 @@ export function Register() {
     const normalizedEmail = normalizeEmail(email)
     const newErrors: Record<string, string> = {}
 
-    if (!name.trim()) newErrors.name = 'Введите имя'
-    if (!normalizedEmail) newErrors.email = 'Введите email'
-    else if (!validateEmail(normalizedEmail)) newErrors.email = 'Некорректный email'
+    if (!name.trim()) newErrors.name = t('auth.validation.nameRequired')
+    if (!normalizedEmail) newErrors.email = t('auth.validation.emailRequired')
+    else if (!validateEmail(normalizedEmail)) newErrors.email = t('auth.validation.emailInvalid')
 
-    const passwordError = validatePassword(password)
-    if (passwordError) newErrors.password = passwordError
-    if (password !== confirmPassword) newErrors.confirmPassword = 'Пароли не совпадают'
+    const passwordErrorKey = validatePassword(password)
+    if (passwordErrorKey) newErrors.password = t(passwordErrorKey)
+    if (!confirmPassword) newErrors.confirmPassword = t('auth.validation.confirmPasswordRequired')
+    else if (password !== confirmPassword) newErrors.confirmPassword = t('auth.validation.passwordsMismatch')
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -42,11 +45,14 @@ export function Register() {
       setErrors({})
     } catch (err) {
       if (isAuthError(err)) {
-        if (err.field === 'email') setErrors({ email: err.message, form: err.message })
-        else if (err.field === 'password') setErrors({ password: err.message, form: err.message })
-        else setErrors({ form: err.message })
+        const message = t(err.message)
+        if (err.field === 'email') setErrors({ email: message, form: message })
+        else if (err.field === 'password') setErrors({ password: message, form: message })
+        else setErrors({ form: message })
       } else {
-        setErrors({ form: err instanceof Error ? err.message : 'Ошибка регистрации' })
+        setErrors({
+          form: err instanceof Error ? t(err.message) : t('auth.register.registerError'),
+        })
       }
     } finally {
       setLoading(false)
@@ -55,32 +61,37 @@ export function Register() {
 
   return (
     <AuthShell
-      title="Регистрация"
-      hint="Создайте аккаунт для начала работы"
+      title={t('auth.register.title')}
+      hint={t('auth.register.hint')}
       onSubmit={handleSubmit}
       footer={
         <>
-          Уже есть аккаунт? <AuthLink to="/login">Войти</AuthLink>
+          {t('auth.register.hasAccount')}{' '}
+          <AuthLink to="/login">{t('auth.register.loginLink')}</AuthLink>
         </>
       }
     >
-      {errors.form && !errors.email && !errors.password && !errors.name && (
+      {errors.form &&
+        !errors.email &&
+        !errors.password &&
+        !errors.name &&
+        !errors.confirmPassword && (
         <span className="input-group__error auth-form__error">{errors.form}</span>
       )}
 
       <Input
-        label="Ваше имя"
+        label={t('auth.register.nameLabel')}
         autoComplete="name"
         value={name}
         onChange={(e) => {
           setName(e.target.value)
           if (errors.name || errors.form) setErrors({})
         }}
-        placeholder="Как вас зовут?"
+        placeholder={t('auth.register.namePlaceholder')}
         error={errors.name}
       />
       <Input
-        label="Email"
+        label={t('common.email')}
         type="email"
         inputMode="email"
         autoComplete="email"
@@ -93,36 +104,36 @@ export function Register() {
           if (errors.email || errors.form) setErrors({})
         }}
         onBlur={() => setEmail((value) => normalizeEmail(value))}
-        placeholder="example@mail.com"
+        placeholder={t('auth.register.emailPlaceholder')}
         error={errors.email}
       />
       <PasswordInput
-        label="Пароль"
+        label={t('common.password')}
         autoComplete="new-password"
         value={password}
         onChange={(e) => {
           setPassword(e.target.value)
           if (errors.password || errors.form) setErrors({})
         }}
-        placeholder="Минимум 8 символов"
+        placeholder={t('auth.register.passwordPlaceholder')}
         error={errors.password}
       />
       <PasswordInput
-        label="Подтверждение пароля"
+        label={t('auth.register.confirmPasswordLabel')}
         autoComplete="new-password"
         value={confirmPassword}
         onChange={(e) => {
           setConfirmPassword(e.target.value)
           if (errors.confirmPassword || errors.form) setErrors({})
         }}
-        placeholder="Повторите пароль"
+        placeholder={t('auth.register.confirmPasswordPlaceholder')}
         error={errors.confirmPassword}
       />
       <Select
-        label="Валюта"
+        label={t('common.currency')}
         value={currency}
         onChange={setCurrency}
-        sheetTitle="Валюта"
+        sheetTitle={t('common.currency')}
         searchable
         options={CURRENCIES.map((c) => ({
           value: c.code,
@@ -131,7 +142,7 @@ export function Register() {
         }))}
       />
       <Button fullWidth size="lg" type="submit" loading={loading}>
-        Зарегистрироваться
+        {t('auth.register.submit')}
       </Button>
     </AuthShell>
   )

@@ -3056,3 +3056,67 @@ body {
 .products-page__footer a:hover {
   text-decoration: underline;
 }
+
+.init-error-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 100dvh;
+  padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom));
+  text-align: center;
+}
+
+.init-error-screen__icon {
+  color: var(--expense);
+}
+
+.init-error-screen__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.init-error-screen__text {
+  max-width: 320px;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.settings-row {
+  min-height: 44px;
+}
+
+.settings-row--active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.settings-row__check {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.dashboard-stats-link {
+  padding-inline: 4px;
+}
+
+.section-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 8px 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stats-page .page__header--row {
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.stats-page__titles {
+  flex: 1;
+  min-width: 0;
+}

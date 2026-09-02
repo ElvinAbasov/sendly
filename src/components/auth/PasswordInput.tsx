@@ -1,5 +1,6 @@
 import { forwardRef, useState, type InputHTMLAttributes } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { useI18n } from '../../i18n/I18nContext'
 
 interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
   label?: string
@@ -8,6 +9,7 @@ interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
 
 export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
   ({ label, error, className = '', id, autoComplete, ...props }, ref) => {
+    const { t } = useI18n()
     const [visible, setVisible] = useState(false)
     const inputId = id || label?.toLowerCase().replace(/\s/g, '-')
 
@@ -31,7 +33,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
             type="button"
             className="input-group__password-toggle"
             onClick={() => setVisible((value) => !value)}
-            aria-label={visible ? 'Скрыть пароль' : 'Показать пароль'}
+            aria-label={visible ? t('common.hidePassword') : t('common.showPassword')}
           >
             {visible ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>

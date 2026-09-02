@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { APP_APK_DOWNLOAD_URL } from '../constants/app'
+import { useI18n } from '../i18n/I18nContext'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -36,6 +37,7 @@ function downloadApk() {
 }
 
 export function useAppInstall() {
+  const { t } = useI18n()
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [installed, setInstalled] = useState(isStandaloneDisplay)
   const [installing, setInstalling] = useState(false)
@@ -98,17 +100,17 @@ export function useAppInstall() {
     }
   }, [deferredPrompt, installed, installing, isNative, platform])
 
-  const buttonLabel = installed ? 'Приложение установлено' : 'Установить Spendly'
+  const buttonLabel = installed ? t('install.buttonInstalled') : t('install.buttonInstall')
 
   const buttonHint = installed
-    ? 'Spendly уже добавлен на ваше устройство.'
+    ? t('install.hintInstalled')
     : canInstallPwa
-      ? 'Нажмите — появится системное окно установки.'
+      ? t('install.hintPwa')
       : platform === 'android'
-        ? 'Скачается APK. Откройте файл и подтвердите установку.'
+        ? t('install.hintAndroidApk')
         : platform === 'ios'
-          ? 'Покажем, как добавить на главный экран.'
-          : 'Откройте Spendly в Chrome на Android для установки.'
+          ? t('install.hintIos')
+          : t('install.hintOther')
 
   return {
     platform,

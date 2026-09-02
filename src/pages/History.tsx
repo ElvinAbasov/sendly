@@ -11,12 +11,14 @@ import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { AmountInput } from '../components/ui/AmountInput'
 import { TransactionItem } from '../components/transactions/TransactionItem'
+import { useI18n } from '../i18n/I18nContext'
 import { isCategoryValidForKind } from '../utils/categories'
 import { formatDateGroup, parseAmount, parseInputDateToISO } from '../utils/format'
 import type { Transaction, TransactionType, HistoryTypeFilter } from '../types'
 import { isSavingTransaction } from '../utils/savings'
 
 export function History() {
+  const { t } = useI18n()
   const {
     user,
     periods,
@@ -50,7 +52,7 @@ export function History() {
   useEffect(() => {
     const editId = searchParams.get('edit')
     if (editId) {
-      const tx = allTransactions.find((t) => t.id === editId)
+      const tx = allTransactions.find((txItem) => txItem.id === editId)
       if (tx && tx.type !== 'income' && tx.type !== 'expense') {
         setSearchParams({}, { replace: true })
         return
@@ -75,14 +77,14 @@ export function History() {
     () => [
       {
         value: 'current',
-        label: activePeriod?.name ?? 'Текущий',
+        label: activePeriod?.name ?? t('history.currentPeriod'),
       },
-      { value: 'all', label: 'Все периоды' },
+      { value: 'all', label: t('history.allPeriods') },
       ...periods
         .filter((p) => p.id !== activePeriod?.id)
         .map((p) => ({ value: p.id, label: p.name })),
     ],
-    [periods, activePeriod],
+    [periods, activePeriod, t],
   )
 
   const savingNames = useMemo(
@@ -94,26 +96,26 @@ export function History() {
     let txs = [...allTransactions]
 
     if (periodFilter === 'current' && activePeriod) {
-      txs = txs.filter((t) => t.periodId === activePeriod.id)
+      txs = txs.filter((txItem) => txItem.periodId === activePeriod.id)
     } else if (periodFilter !== 'all' && periodFilter !== 'current') {
-      txs = txs.filter((t) => t.periodId === periodFilter)
+      txs = txs.filter((txItem) => txItem.periodId === periodFilter)
     }
 
     if (typeFilter === 'income') {
-      txs = txs.filter((t) => t.type === 'income')
+      txs = txs.filter((txItem) => txItem.type === 'income')
     } else if (typeFilter === 'expense') {
-      txs = txs.filter((t) => t.type === 'expense')
+      txs = txs.filter((txItem) => txItem.type === 'expense')
     } else if (typeFilter === 'savings') {
-      txs = txs.filter((t) => isSavingTransaction(t.type))
+      txs = txs.filter((txItem) => isSavingTransaction(txItem.type))
     }
 
     if (expenseCategoryFilter !== 'all' || incomeCategoryFilter !== 'all') {
-      txs = txs.filter((t) => {
-        if (t.type === 'expense') {
-          return expenseCategoryFilter === 'all' || t.category === expenseCategoryFilter
+      txs = txs.filter((txItem) => {
+        if (txItem.type === 'expense') {
+          return expenseCategoryFilter === 'all' || txItem.category === expenseCategoryFilter
         }
-        if (t.type === 'income') {
-          return incomeCategoryFilter === 'all' || t.category === incomeCategoryFilter
+        if (txItem.type === 'income') {
+          return incomeCategoryFilter === 'all' || txItem.category === incomeCategoryFilter
         }
         return true
       })
@@ -122,10 +124,10 @@ export function History() {
     if (search.trim()) {
       const q = search.toLowerCase()
       txs = txs.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          t.category.toLowerCase().includes(q) ||
-          t.note.toLowerCase().includes(q),
+        (txItem) =>
+          txItem.title.toLowerCase().includes(q) ||
+          txItem.category.toLowerCase().includes(q) ||
+          txItem.note.toLowerCase().includes(q),
       )
     }
 
@@ -161,8 +163,8 @@ export function History() {
     if (!editingTx || saving) return
     const errors: Record<string, string> = {}
     const parsed = parseAmount(editForm.amount)
-    if (!editForm.amount || parsed <= 0) errors.amount = 'Введите сумму больше 0'
-    if (!editForm.title.trim()) errors.title = 'Введите название'
+    if (!editForm.amount || parsed <= 0) errors.amount = t('validation.amountRequired')
+    if (!editForm.title.trim()) errors.title = t('validation.titleRequired')
     setEditErrors(errors)
     if (Object.keys(errors).length > 0) return
 
@@ -210,14 +212,14 @@ export function History() {
   return (
     <div className="page history-page">
       <header className="page__header">
-        <h1 className="page__title">История</h1>
+        <h1 className="page__title">{t('history.title')}</h1>
       </header>
 
       <div className="search-bar">
         <Search size={18} className="search-bar__icon" />
         <input
           className="search-bar__input"
-          placeholder="Поиск операций..."
+          placeholder={t('history.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -230,39 +232,39 @@ export function History() {
           <div className="history-filters__categories">
             {(typeFilter === 'all' || typeFilter === 'expense') && (
               <CategorySelect
-                label="Расходы"
+                label={t('history.expenseCategoriesLabel')}
                 mode="expense"
                 size="sm"
                 value={expenseCategoryFilter}
                 onChange={setExpenseCategoryFilter}
-                placeholder="Все"
+                placeholder={t('common.all')}
                 allowAllOption
-                allOptionLabel="Все расходы"
+                allOptionLabel={t('history.allExpenses')}
               />
             )}
 
             {(typeFilter === 'all' || typeFilter === 'income') && (
               <CategorySelect
-                label="Доходы"
+                label={t('history.incomeCategoriesLabel')}
                 mode="income"
                 size="sm"
                 value={incomeCategoryFilter}
                 onChange={setIncomeCategoryFilter}
-                placeholder="Все"
+                placeholder={t('common.all')}
                 allowAllOption
-                allOptionLabel="Все доходы"
+                allOptionLabel={t('history.allIncomes')}
               />
             )}
           </div>
         )}
 
         <Select
-          label="Период"
+          label={t('common.period')}
           size="sm"
           value={periodFilter}
           onChange={setPeriodFilter}
-          sheetTitle="Период"
-          placeholder="Выберите период"
+          sheetTitle={t('common.period')}
+          placeholder={t('history.periodPlaceholder')}
           leadingIcon="📅"
           options={periodOptions.map((opt) => ({
             ...opt,
@@ -273,7 +275,7 @@ export function History() {
 
       {grouped.length === 0 ? (
         <Card>
-          <p className="empty-text">Операции не найдены</p>
+          <p className="empty-text">{t('empty.noTransactionsFound')}</p>
         </Card>
       ) : (
         grouped.map(([date, txs]) => (
@@ -289,10 +291,10 @@ export function History() {
                   />
                   {!isSavingTransaction(tx.type) && (
                     <div className="tx-item-actions">
-                      <button onClick={() => openEdit(tx)} aria-label="Редактировать">
+                      <button onClick={() => openEdit(tx)} aria-label={t('history.editAria')}>
                         <Pencil size={16} />
                       </button>
-                      <button onClick={() => setDeleteTx(tx)} aria-label="Удалить">
+                      <button onClick={() => setDeleteTx(tx)} aria-label={t('history.deleteAria')}>
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -304,20 +306,20 @@ export function History() {
         ))
       )}
 
-      <Modal open={!!editingTx} onClose={() => setEditingTx(null)} title="Редактировать">
+      <Modal open={!!editingTx} onClose={() => setEditingTx(null)} title={t('history.editTitle')}>
         <div className="edit-form">
           <div className="type-toggle type-toggle--sm">
             <button
               className={`type-toggle__btn ${editForm.type === 'expense' ? 'type-toggle__btn--active type-toggle__btn--expense' : ''}`}
               onClick={() => setEditType('expense')}
             >
-              Расход
+              {t('addTransaction.expense')}
             </button>
             <button
               className={`type-toggle__btn ${editForm.type === 'income' ? 'type-toggle__btn--active type-toggle__btn--income' : ''}`}
               onClick={() => setEditType('income')}
             >
-              Доход
+              {t('addTransaction.income')}
             </button>
           </div>
           <AmountInput
@@ -327,45 +329,45 @@ export function History() {
             error={editErrors.amount}
           />
           <CategorySelect
-            label="Категория"
+            label={t('common.category')}
             mode={editForm.type === 'expense' ? 'expense' : 'income'}
             value={editForm.category}
             onChange={(category) => setEditForm({ ...editForm, category })}
             allowCreate
           />
           <Input
-            label="Название"
+            label={t('addTransaction.titleLabel')}
             value={editForm.title}
             onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
             error={editErrors.title}
           />
           <Input
-            label="Комментарий"
+            label={t('addTransaction.commentLabel')}
             value={editForm.note}
             onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
           />
           <Input
-            label="Дата"
+            label={t('addTransaction.dateLabel')}
             type="date"
             value={editForm.date}
             onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
           />
           <Button fullWidth onClick={handleSaveEdit} loading={saving}>
-            Сохранить
+            {t('common.save')}
           </Button>
         </div>
       </Modal>
 
-      <Modal open={!!deleteTx} onClose={() => setDeleteTx(null)} title="Удалить операцию?">
+      <Modal open={!!deleteTx} onClose={() => setDeleteTx(null)} title={t('history.deleteTitle')}>
         <p className="modal-text">
-          Вы уверены, что хотите удалить «{deleteTx?.title}»? Это действие нельзя отменить.
+          {t('history.deleteConfirm', { title: deleteTx?.title ?? '' })}
         </p>
         <div className="modal-actions">
           <Button variant="secondary" onClick={() => setDeleteTx(null)}>
-            Отмена
+            {t('common.cancel')}
           </Button>
           <Button variant="danger" onClick={handleDelete} loading={saving}>
-            Удалить
+            {t('common.delete')}
           </Button>
         </div>
       </Modal>

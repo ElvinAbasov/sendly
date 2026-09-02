@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Check, Plus } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
+import { useI18n } from '../../i18n/I18nContext'
 import {
   getCategoriesForKind,
   getCategoryIcon,
@@ -40,15 +41,16 @@ export function CategorySelect({
   onChange,
   mode,
   label,
-  placeholder = 'Выберите категорию',
+  placeholder,
   error,
   allowCreate = false,
   allowAllOption = false,
   allOptionValue = 'all',
-  allOptionLabel = 'Все категории',
+  allOptionLabel,
   disabled = false,
   size = 'md',
 }: CategorySelectProps) {
+  const { t } = useI18n()
   const { settings, addCustomCategory } = useApp()
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
@@ -58,12 +60,15 @@ export function CategorySelect({
   const custom = settings.customCategories
   const customIcons = settings.customCategoryIcons
 
+  const resolvedPlaceholder = placeholder ?? t('categories.selectPlaceholder')
+  const resolvedAllOptionLabel = allOptionLabel ?? t('categories.allCategories')
+
   const groups = useMemo((): CategoryGroup[] => {
     if (mode === 'income') {
-      return [{ id: 'income', title: 'Доходы', items: getIncomeCategories(custom) }]
+      return [{ id: 'income', title: t('categories.incomeGroup'), items: getIncomeCategories(custom) }]
     }
-    return [{ id: 'expense', title: 'Расходы', items: getExpenseCategories(custom) }]
-  }, [mode, custom])
+    return [{ id: 'expense', title: t('categories.expenseGroup'), items: getExpenseCategories(custom) }]
+  }, [mode, custom, t])
 
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -76,17 +81,17 @@ export function CategorySelect({
       .filter((group) => group.items.length > 0)
   }, [groups, search])
 
-  const sheetTitle = mode === 'income' ? 'Категория дохода' : 'Категория расхода'
+  const sheetTitle = mode === 'income' ? t('categories.incomeSheetTitle') : t('categories.expenseSheetTitle')
 
   const triggerOptions = useMemo(() => {
     if (allowAllOption && value === allOptionValue) {
-      return [{ value: allOptionValue, label: allOptionLabel, emoji: '📋' }]
+      return [{ value: allOptionValue, label: resolvedAllOptionLabel, emoji: '📋' }]
     }
     if (value) {
       return [{ value, label: value, emoji: getCategoryIcon(value, customIcons) }]
     }
     return []
-  }, [allowAllOption, value, allOptionValue, allOptionLabel, customIcons])
+  }, [allowAllOption, value, allOptionValue, resolvedAllOptionLabel, customIcons])
 
   return (
     <SelectSheet
@@ -94,7 +99,7 @@ export function CategorySelect({
       onChange={onChange}
       options={triggerOptions}
       label={label}
-      placeholder={placeholder}
+      placeholder={resolvedPlaceholder}
       sheetTitle={sheetTitle}
       error={error}
       disabled={disabled}
@@ -103,19 +108,19 @@ export function CategorySelect({
       leadingIcon="📂"
       searchValue={search}
       onSearchChange={setSearch}
-      searchPlaceholder="Поиск категории..."
-      emptyText="Категории не найдены"
+      searchPlaceholder={t('categories.searchPlaceholder')}
+      emptyText={t('categories.notFound')}
       footer={
         allowCreate
           ? (select) => {
               const handleCreate = async () => {
                 const name = normalizeCategoryName(newName)
                 if (!name) {
-                  setCreateError('Введите название')
+                  setCreateError(t('validation.categoryNameRequired'))
                   return
                 }
                 if (isCategoryNameTaken(name, mode, custom)) {
-                  setCreateError('Такая категория уже есть')
+                  setCreateError(t('validation.categoryExists'))
                   return
                 }
 
@@ -130,7 +135,7 @@ export function CategorySelect({
                 <div className="category-sheet-create">
                   <input
                     className="category-sheet-create__input"
-                    placeholder="Название категории"
+                    placeholder={t('categories.namePlaceholder')}
                     value={newName}
                     onChange={(e) => {
                       setNewName(e.target.value)
@@ -149,14 +154,14 @@ export function CategorySelect({
                         setCreateError('')
                       }}
                     >
-                      Отмена
+                      {t('common.cancel')}
                     </button>
                     <button
                       type="button"
                       className="category-sheet-create__submit"
                       onClick={handleCreate}
                     >
-                      Создать
+                      {t('common.create')}
                     </button>
                   </div>
                 </div>
@@ -167,7 +172,7 @@ export function CategorySelect({
                   onClick={() => setCreating(true)}
                 >
                   <Plus size={18} />
-                  Создать категорию
+                  {t('categories.createCategory')}
                 </button>
               )
             }
@@ -183,7 +188,7 @@ export function CategorySelect({
               onClick={() => select(allOptionValue)}
             >
               <span className="category-sheet-item__emoji">📋</span>
-              <span className="category-sheet-item__label">{allOptionLabel}</span>
+              <span className="category-sheet-item__label">{resolvedAllOptionLabel}</span>
               {value === allOptionValue && (
                 <span className="category-sheet-item__check">
                   <Check size={18} strokeWidth={2.5} />
@@ -193,7 +198,7 @@ export function CategorySelect({
           )}
 
           {filteredGroups.length === 0 ? (
-            <p className="category-sheet__empty">Категории не найдены</p>
+            <p className="category-sheet__empty">{t('categories.notFound')}</p>
           ) : (
             filteredGroups.map((group) => (
               <div key={group.id} className="category-sheet-group">

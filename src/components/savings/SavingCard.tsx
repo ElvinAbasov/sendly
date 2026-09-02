@@ -2,6 +2,7 @@ import { ChevronRight } from 'lucide-react'
 import type { SavingGoal } from '../../types'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
+import { useI18n } from '../../i18n/I18nContext'
 import { formatAmount } from '../../utils/format'
 import { getRemainingAmount, getSavingProgress } from '../../utils/savings'
 
@@ -22,6 +23,7 @@ export function SavingCard({
   onDeposit,
   onWithdraw,
 }: SavingCardProps) {
+  const { t } = useI18n()
   const progress = getSavingProgress(goal)
   const remaining = getRemainingAmount(goal)
   const hasTarget = goal.targetAmount != null && goal.targetAmount > 0
@@ -67,9 +69,13 @@ export function SavingCard({
           <div className="saving-card__progress-meta">
             <span>{Math.round(progress)}%</span>
             {remaining != null && remaining > 0 && (
-              <span>Осталось {formatAmount(remaining, currency)}</span>
+              <span>
+                {t('savings.card.remaining', { amount: formatAmount(remaining, currency) })}
+              </span>
             )}
-            {goal.isCompleted && <span className="saving-card__badge">Цель достигнута</span>}
+            {goal.isCompleted && (
+              <span className="saving-card__badge">{t('savings.card.goalReached')}</span>
+            )}
           </div>
         </div>
       )}
@@ -78,12 +84,12 @@ export function SavingCard({
         <div className="saving-card__actions" onClick={(e) => e.stopPropagation()}>
           {onDeposit && (
             <Button size="sm" fullWidth onClick={onDeposit}>
-              Пополнить
+              {t('savings.card.deposit')}
             </Button>
           )}
           {onWithdraw && (
             <Button size="sm" variant="secondary" fullWidth onClick={onWithdraw}>
-              Забрать
+              {t('savings.card.withdraw')}
             </Button>
           )}
         </div>

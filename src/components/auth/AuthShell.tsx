@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useI18n } from '../../i18n/I18nContext'
 
 interface AuthShellProps {
   title: string
@@ -11,14 +12,16 @@ interface AuthShellProps {
 }
 
 export function AuthShell({ title, hint, footer, onSubmit, children }: AuthShellProps) {
+  const { t } = useI18n()
+
   return (
     <div className="onboarding auth-page">
       <div className="onboarding__hero">
         <div className="onboarding__logo">
           <Wallet size={40} />
         </div>
-        <h1 className="onboarding__title">Spendly</h1>
-        <p className="onboarding__subtitle">Учёт личных финансов</p>
+        <h1 className="onboarding__title">{t('app.name')}</h1>
+        <p className="onboarding__subtitle">{t('app.tagline')}</p>
       </div>
 
       <form

@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url'
 
 const POCKETBASE_HOST = process.env.POCKETBASE_HOST?.trim() || '0.0.0.0'
 const POCKETBASE_PORT = process.env.POCKETBASE_PORT?.trim() || '8090'
-const POCKETBASE_HTTP = `http://${POCKETBASE_HOST}:${POCKETBASE_PORT}`
 const POCKETBASE_HEALTH = `http://127.0.0.1:${POCKETBASE_PORT}`
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))

@@ -1,13 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { Home, History, Settings, Plus, Wallet } from 'lucide-react'
-
-const NAV_ITEMS = [
-  { to: '/', icon: Home, label: 'Главная', end: true },
-  { to: '/history', icon: History, label: 'История', end: false },
-  { to: '/add', icon: Plus, label: 'Добавить', end: false },
-  { to: '/savings', icon: Wallet, label: 'Накопления', end: false },
-  { to: '/settings', icon: Settings, label: 'Настройки', end: false },
-] as const
+import { useI18n } from '../../i18n/I18nContext'
 
 function NavItem({
   to,
@@ -37,10 +30,20 @@ function NavItem({
 }
 
 export function BottomNav() {
+  const { t } = useI18n()
+
+  const navItems = [
+    { to: '/', icon: Home, label: t('nav.home'), end: true },
+    { to: '/history', icon: History, label: t('nav.history'), end: false },
+    { to: '/add', icon: Plus, label: t('nav.add'), end: false },
+    { to: '/savings', icon: Wallet, label: t('nav.savings'), end: false },
+    { to: '/settings', icon: Settings, label: t('nav.settings'), end: false },
+  ] as const
+
   return (
-    <nav className="bottom-nav" aria-label="Основная навигация">
+    <nav className="bottom-nav" aria-label={t('nav.mainNav')}>
       <div className="bottom-nav__dock">
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <NavItem key={item.to} {...item} />
         ))}
       </div>

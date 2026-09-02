@@ -18,6 +18,8 @@ import { SavingCard } from '../components/savings/SavingCard'
 import { AutoDepositPrompt } from '../components/savings/AutoDepositPrompt'
 import { Button } from '../components/ui/Button'
 import { DashboardSkeleton } from '../components/ui/Skeleton'
+import { useI18n } from '../i18n/I18nContext'
+import { getErrorMessage } from '../utils/errorMessage'
 import { formatAmount, formatPercent, formatCompactDate, toInputDate } from '../utils/format'
 
 function useTodayCompactDate() {
@@ -33,6 +35,7 @@ function useTodayCompactDate() {
 }
 
 export function Dashboard() {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const {
     loading,
@@ -76,9 +79,7 @@ export function Dashboard() {
               setAutoDepositError('')
               await confirmAutoDeposit(goal.id)
             } catch (err) {
-              setAutoDepositError(
-                err instanceof Error ? err.message : 'Не удалось пополнить',
-              )
+              setAutoDepositError(getErrorMessage(err, t, 'dashboard.autoDepositFailed'))
             }
           }}
           onSkip={() => skipAutoDeposit(goal.id)}
@@ -88,12 +89,12 @@ export function Dashboard() {
       <Card className="capital-hero" padding="lg">
         <div className="capital-hero__main">
           <div className="capital-hero__top">
-            <p className="capital-hero__label">💰 Общий капитал</p>
+            <p className="capital-hero__label">💰 {t('dashboard.totalCapital')}</p>
             <button
               type="button"
               className="capital-hero__date"
               onClick={() => navigate('/add')}
-              aria-label={`Сегодня ${formatCompactDate(today)}. Добавить операцию`}
+              aria-label={t('common.addTodayAria', { date: formatCompactDate(today) })}
             >
               <time dateTime={toInputDate(today)}>{formatCompactDate(today)}</time>
             </button>
@@ -111,7 +112,7 @@ export function Dashboard() {
         <div className="capital-hero__split">
           <div className="capital-hero__item">
             <CreditCard size={16} />
-            <span className="capital-hero__item-label">Доступно</span>
+            <span className="capital-hero__item-label">{t('dashboard.available')}</span>
             <span className="capital-hero__item-value">
               {formatAmount(stats.availableBalance, user.currency)}
             </span>
@@ -119,7 +120,7 @@ export function Dashboard() {
           <div className="capital-hero__divider" />
           <div className="capital-hero__item">
             <Wallet size={16} />
-            <span className="capital-hero__item-label">Накоплено</span>
+            <span className="capital-hero__item-label">{t('dashboard.saved')}</span>
             <span className="capital-hero__item-value">
               {formatAmount(stats.totalInSavings, user.currency)}
             </span>
@@ -130,28 +131,28 @@ export function Dashboard() {
       <div className="stats-grid">
         <Card padding="sm" className="stat-card">
           <Wallet size={18} className="stat-card__icon stat-card__icon--neutral" />
-          <span className="stat-card__label">Стартовый</span>
+          <span className="stat-card__label">{t('dashboard.initial')}</span>
           <span className="stat-card__value">
             {formatAmount(stats.initialCapital, user.currency)}
           </span>
         </Card>
         <Card padding="sm" className="stat-card">
           <TrendingUp size={18} className="stat-card__icon stat-card__icon--income" />
-          <span className="stat-card__label">📈 Доходы</span>
+          <span className="stat-card__label">📈 {t('dashboard.income')}</span>
           <span className="stat-card__value stat-card__value--income">
             +{formatAmount(stats.totalIncome, user.currency)}
           </span>
         </Card>
         <Card padding="sm" className="stat-card">
           <TrendingDown size={18} className="stat-card__icon stat-card__icon--expense" />
-          <span className="stat-card__label">📉 Расходы</span>
+          <span className="stat-card__label">📉 {t('dashboard.expenses')}</span>
           <span className="stat-card__value stat-card__value--expense">
             −{formatAmount(stats.totalExpenses, user.currency)}
           </span>
         </Card>
         <Card padding="sm" className="stat-card">
           <BarChart2 size={18} className="stat-card__icon stat-card__icon--neutral" />
-          <span className="stat-card__label">Прибыль</span>
+          <span className="stat-card__label">{t('dashboard.profit')}</span>
           <span
             className={`stat-card__value ${stats.profit >= 0 ? 'stat-card__value--income' : 'stat-card__value--expense'}`}
           >
@@ -160,12 +161,24 @@ export function Dashboard() {
         </Card>
       </div>
 
+      <Card padding="sm">
+        <button
+          type="button"
+          className="settings-row dashboard-stats-link"
+          onClick={() => navigate('/stats')}
+        >
+          <BarChart2 size={18} />
+          <span>{t('nav.stats')}</span>
+          <ChevronRight size={18} />
+        </button>
+      </Card>
+
       {topSavings.length > 0 && (
         <section>
           <div className="section-header">
-            <h3 className="section-title">Накопления</h3>
+            <h3 className="section-title">{t('dashboard.savingsSection')}</h3>
             <button className="section-link" onClick={() => navigate('/savings')}>
-              Все
+              {t('common.all')}
               <ChevronRight size={14} />
             </button>
           </div>
@@ -184,27 +197,27 @@ export function Dashboard() {
       )}
 
       <Card>
-        <h3 className="section-title">Динамика баланса</h3>
+        <h3 className="section-title">{t('dashboard.balanceDynamics')}</h3>
         <BalanceChart data={balanceHistory} currency={user.currency} />
       </Card>
 
       <Card>
-        <h3 className="section-title">Расходы по категориям</h3>
+        <h3 className="section-title">{t('dashboard.expensesByCategory')}</h3>
         <CategoryChart data={expenseCategories} currency={user.currency} />
       </Card>
 
       <section>
         <div className="section-header">
-          <h3 className="section-title">Последние операции</h3>
+          <h3 className="section-title">{t('dashboard.recentTransactions')}</h3>
           {transactions.length > 5 && (
             <button className="section-link" onClick={() => navigate('/history')}>
-              Все
+              {t('common.all')}
             </button>
           )}
         </div>
         {recentTx.length === 0 ? (
           <Card>
-            <p className="empty-text">Пока нет операций. Нажмите + чтобы добавить.</p>
+            <p className="empty-text">{t('empty.noTransactions')}</p>
           </Card>
         ) : (
           <Card padding="sm" className="tx-list-card">
@@ -228,7 +241,7 @@ export function Dashboard() {
         className="dashboard-add-btn"
       >
         <Plus size={22} />
-        Добавить
+        {t('dashboard.addButton')}
       </Button>
     </div>
   )

@@ -5,6 +5,7 @@ import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Input'
 import { AmountInput } from '../ui/AmountInput'
 import { Button } from '../ui/Button'
+import { useI18n } from '../../i18n/I18nContext'
 import { parseAmount, parseInputDateToISO } from '../../utils/format'
 
 interface SavingFormModalProps {
@@ -30,6 +31,7 @@ export function SavingFormModal({
   initial,
   currency,
 }: SavingFormModalProps) {
+  const { t } = useI18n()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [icon, setIcon] = useState<string>(SAVING_ICONS[0])
@@ -60,11 +62,11 @@ export function SavingFormModal({
   const handleSubmit = async () => {
     if (saving) return
     const nextErrors: Record<string, string> = {}
-    if (!name.trim()) nextErrors.name = 'Введите название'
+    if (!name.trim()) nextErrors.name = t('validation.nameRequired')
 
     const parsedTarget = targetAmount ? parseAmount(targetAmount) : null
     if (targetAmount && (parsedTarget === null || parsedTarget <= 0)) {
-      nextErrors.targetAmount = 'Цель должна быть больше 0'
+      nextErrors.targetAmount = t('validation.targetMustBePositive')
     }
 
     let parsedAuto: number | null = null
@@ -73,10 +75,10 @@ export function SavingFormModal({
       parsedAuto = parseAmount(autoDepositAmount)
       parsedDay = parseInt(autoDepositDay, 10)
       if (!autoDepositAmount || parsedAuto <= 0) {
-        nextErrors.autoDepositAmount = 'Введите сумму автопополнения'
+        nextErrors.autoDepositAmount = t('validation.autoDepositAmountRequired')
       }
       if (!parsedDay || parsedDay < 1 || parsedDay > 28) {
-        nextErrors.autoDepositDay = 'День от 1 до 28'
+        nextErrors.autoDepositDay = t('validation.autoDepositDayRange')
       }
     }
 
@@ -104,26 +106,26 @@ export function SavingFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={initial ? 'Редактировать накопление' : 'Новое накопление'}
+      title={initial ? t('savings.modals.editTitle') : t('savings.modals.createTitle')}
     >
       <div className="saving-form">
         <Input
-          label="Название"
+          label={t('common.name')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={errors.name}
-          placeholder="Новый телефон"
+          placeholder={t('savings.modals.namePlaceholder')}
         />
 
         <Input
-          label="Описание"
+          label={t('common.description')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Необязательно"
+          placeholder={t('common.optional')}
         />
 
         <div className="saving-form__icons">
-          <span className="input-group__label">Иконка</span>
+          <span className="input-group__label">{t('common.icon')}</span>
           <div className="icon-picker">
             {SAVING_ICONS.map((emoji) => (
               <button
@@ -139,7 +141,7 @@ export function SavingFormModal({
         </div>
 
         <AmountInput
-          label="Цель (необязательно)"
+          label={t('savings.modals.targetOptional')}
           value={targetAmount}
           onChange={setTargetAmount}
           currency={currency}
@@ -148,7 +150,7 @@ export function SavingFormModal({
         />
 
         <Input
-          label="Дата цели (необязательно)"
+          label={t('savings.modals.targetDateOptional')}
           type="date"
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}
@@ -161,12 +163,12 @@ export function SavingFormModal({
               checked={enableAuto}
               onChange={(e) => setEnableAuto(e.target.checked)}
             />
-            <span>Автопополнение каждый месяц</span>
+            <span>{t('savings.modals.autoDepositToggle')}</span>
           </label>
           {enableAuto && (
             <div className="saving-form__auto-fields">
               <AmountInput
-                label="Сумма"
+                label={t('common.amount')}
                 value={autoDepositAmount}
                 onChange={setAutoDepositAmount}
                 currency={currency}
@@ -174,7 +176,7 @@ export function SavingFormModal({
                 placeholder="50"
               />
               <Input
-                label="День месяца (1–28)"
+                label={t('savings.modals.autoDepositDayLabel')}
                 type="number"
                 min={1}
                 max={28}
@@ -187,7 +189,7 @@ export function SavingFormModal({
         </div>
 
         <Button fullWidth onClick={handleSubmit} loading={saving}>
-          {initial ? 'Сохранить' : 'Создать'}
+          {initial ? t('common.save') : t('common.create')}
         </Button>
       </div>
     </Modal>

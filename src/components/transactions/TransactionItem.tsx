@@ -1,7 +1,8 @@
 import { ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Wallet } from 'lucide-react'
 import type { Transaction } from '../../types'
 import { CATEGORY_ICONS } from '../../constants/categories'
-import { SAVING_TRANSACTION_LABELS } from '../../constants/savings'
+import { getSavingTransactionLabel } from '../../constants/savings'
+import { useI18n } from '../../i18n/I18nContext'
 import { isSavingTransaction } from '../../utils/savings'
 import { formatAmount } from '../../utils/format'
 
@@ -18,6 +19,7 @@ export function TransactionItem({
   savingNames = {},
   onClick,
 }: TransactionItemProps) {
+  const { t } = useI18n()
   const isIncome = transaction.type === 'income'
   const isSaving = isSavingTransaction(transaction.type)
 
@@ -43,7 +45,7 @@ export function TransactionItem({
         : transaction.type === 'saving_withdraw'
           ? '←'
           : '↔'
-    meta = SAVING_TRANSACTION_LABELS[transaction.type]
+    meta = getSavingTransactionLabel(transaction.type, t)
 
     if (transaction.type === 'saving_transfer') {
       const from = transaction.sourceSavingId

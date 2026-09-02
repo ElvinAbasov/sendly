@@ -1,5 +1,6 @@
 import { useEffect, type CSSProperties } from 'react'
 import { Sparkles } from 'lucide-react'
+import { useI18n } from '../../i18n/I18nContext'
 
 interface GoalSuccessAnimationProps {
   goalName: string
@@ -7,6 +8,8 @@ interface GoalSuccessAnimationProps {
 }
 
 export function GoalSuccessAnimation({ goalName, onComplete }: GoalSuccessAnimationProps) {
+  const { t } = useI18n()
+
   useEffect(() => {
     const timer = setTimeout(() => onComplete?.(), 3200)
     return () => clearTimeout(timer)
@@ -27,7 +30,7 @@ export function GoalSuccessAnimation({ goalName, onComplete }: GoalSuccessAnimat
         <div className="goal-success__icon">
           <Sparkles size={32} />
         </div>
-        <h2 className="goal-success__title">Цель достигнута!</h2>
+        <h2 className="goal-success__title">{t('savings.success.title')}</h2>
         <p className="goal-success__subtitle">{goalName}</p>
       </div>
     </div>

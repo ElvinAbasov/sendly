@@ -3,9 +3,11 @@ import { Wallet } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
-import { parseAmount } from '../utils/format'
+import { useI18n } from '../i18n/I18nContext'
+import { formatPeriodName, parseAmount } from '../utils/format'
 
 export function Onboarding() {
+  const { t } = useI18n()
   const { setupPeriod } = useApp()
 
   const [periodName, setPeriodName] = useState('')
@@ -13,17 +15,14 @@ export function Onboarding() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
-  const defaultPeriodName = new Intl.DateTimeFormat('ru-RU', {
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date())
+  const defaultPeriodName = formatPeriodName()
 
   const handlePeriodSubmit = async () => {
     const name = periodName.trim() || defaultPeriodName
     const capital = parseAmount(initialCapital)
     const newErrors: Record<string, string> = {}
-    if (!name) newErrors.periodName = 'Введите название периода'
-    if (initialCapital && capital < 0) newErrors.initialCapital = 'Капитал не может быть отрицательным'
+    if (!name) newErrors.periodName = t('onboarding.periodNameRequired')
+    if (initialCapital && capital < 0) newErrors.initialCapital = t('onboarding.capitalNegative')
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
@@ -42,24 +41,22 @@ export function Onboarding() {
         <div className="onboarding__logo">
           <Wallet size={40} />
         </div>
-        <h1 className="onboarding__title">Spendly</h1>
-        <p className="onboarding__subtitle">Учёт личных финансов</p>
+        <h1 className="onboarding__title">{t('app.name')}</h1>
+        <p className="onboarding__subtitle">{t('app.tagline')}</p>
       </div>
 
       <div className="onboarding__form">
-        <h2>Создайте период</h2>
-        <p className="onboarding__hint">
-          Период — это отрезок времени для учёта финансов
-        </p>
+        <h2>{t('onboarding.createPeriodTitle')}</h2>
+        <p className="onboarding__hint">{t('onboarding.createPeriodHint')}</p>
         <Input
-          label="Название периода"
+          label={t('onboarding.periodNameLabel')}
           value={periodName || defaultPeriodName}
           onChange={(e) => setPeriodName(e.target.value)}
           placeholder={defaultPeriodName}
           error={errors.periodName}
         />
         <Input
-          label="Стартовый капитал"
+          label={t('onboarding.initialCapitalLabel')}
           type="number"
           inputMode="decimal"
           value={initialCapital}
@@ -68,7 +65,7 @@ export function Onboarding() {
           error={errors.initialCapital}
         />
         <Button fullWidth size="lg" onClick={handlePeriodSubmit} loading={loading}>
-          Начать
+          {t('onboarding.startButton')}
         </Button>
       </div>
     </div>

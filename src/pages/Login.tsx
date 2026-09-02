@@ -4,10 +4,12 @@ import { AuthLink, AuthShell } from '../components/auth/AuthShell'
 import { PasswordInput } from '../components/auth/PasswordInput'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { useI18n } from '../i18n/I18nContext'
 import { normalizeEmail, validateEmail } from '../utils/auth'
 import { isAuthError } from '../utils/authErrors'
 
 export function Login() {
+  const { t } = useI18n()
   const { login } = useApp()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,9 +20,9 @@ export function Login() {
     const normalizedEmail = normalizeEmail(email)
     const newErrors: Record<string, string> = {}
 
-    if (!normalizedEmail) newErrors.email = 'Введите email'
-    else if (!validateEmail(normalizedEmail)) newErrors.email = 'Некорректный email'
-    if (!password) newErrors.password = 'Введите пароль'
+    if (!normalizedEmail) newErrors.email = t('auth.validation.emailRequired')
+    else if (!validateEmail(normalizedEmail)) newErrors.email = t('auth.validation.emailInvalid')
+    if (!password) newErrors.password = t('auth.validation.passwordRequired')
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -33,17 +35,20 @@ export function Login() {
       setErrors({})
     } catch (err) {
       if (isAuthError(err)) {
+        const message = t(err.message)
         if (err.field === 'both') {
-          setErrors({ email: err.message, password: err.message, form: err.message })
+          setErrors({ email: message, password: message, form: message })
         } else if (err.field === 'email') {
-          setErrors({ email: err.message, form: err.message })
+          setErrors({ email: message, form: message })
         } else if (err.field === 'password') {
-          setErrors({ password: err.message, form: err.message })
+          setErrors({ password: message, form: message })
         } else {
-          setErrors({ form: err.message })
+          setErrors({ form: message })
         }
       } else {
-        setErrors({ form: err instanceof Error ? err.message : 'Ошибка входа' })
+        setErrors({
+          form: err instanceof Error ? t(err.message) : t('auth.login.loginError'),
+        })
       }
     } finally {
       setLoading(false)
@@ -52,12 +57,13 @@ export function Login() {
 
   return (
     <AuthShell
-      title="Вход"
-      hint="Войдите в свой аккаунт"
+      title={t('auth.login.title')}
+      hint={t('auth.login.hint')}
       onSubmit={handleSubmit}
       footer={
         <>
-          Нет аккаунта? <AuthLink to="/register">Зарегистрироваться</AuthLink>
+          {t('auth.login.noAccount')}{' '}
+          <AuthLink to="/register">{t('auth.login.registerLink')}</AuthLink>
         </>
       }
     >
@@ -66,7 +72,7 @@ export function Login() {
       )}
 
       <Input
-        label="Email"
+        label={t('common.email')}
         type="email"
         inputMode="email"
         autoComplete="email"
@@ -79,22 +85,22 @@ export function Login() {
           if (errors.email || errors.form) setErrors({})
         }}
         onBlur={() => setEmail((value) => normalizeEmail(value))}
-        placeholder="example@mail.com"
+        placeholder={t('auth.login.emailPlaceholder')}
         error={errors.email}
       />
       <PasswordInput
-        label="Пароль"
+        label={t('common.password')}
         autoComplete="current-password"
         value={password}
         onChange={(e) => {
           setPassword(e.target.value)
           if (errors.password || errors.form) setErrors({})
         }}
-        placeholder="••••••••"
+        placeholder={t('auth.login.passwordPlaceholder')}
         error={errors.password}
       />
       <Button fullWidth size="lg" type="submit" loading={loading}>
-        Войти
+        {t('auth.login.submit')}
       </Button>
     </AuthShell>
   )

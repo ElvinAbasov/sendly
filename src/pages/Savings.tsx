@@ -8,10 +8,13 @@ import { Select } from '../components/ui/Select'
 import { SavingCard } from '../components/savings/SavingCard'
 import { SavingFormModal } from '../components/savings/SavingFormModal'
 import { AutoDepositPrompt } from '../components/savings/AutoDepositPrompt'
+import { useI18n } from '../i18n/I18nContext'
+import { getErrorMessage } from '../utils/errorMessage'
 import { formatAmount, formatPercent } from '../utils/format'
 import { sortSavingGoals, type SavingSortOption } from '../utils/savings'
 
 export function Savings() {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const {
     user,
@@ -53,13 +56,13 @@ export function Savings() {
     <div className="page savings-page">
       <header className="page__header page__header--row">
         <div>
-          <h1 className="page__title">Накопления</h1>
-          <p className="page__subtitle">Цели и отложенные средства</p>
+          <h1 className="page__title">{t('savings.list.title')}</h1>
+          <p className="page__subtitle">{t('savings.list.subtitle')}</p>
         </div>
         <button
           className="savings-page__add-btn"
           onClick={() => setShowCreate(true)}
-          aria-label="Создать накопление"
+          aria-label={t('savings.list.createAria')}
         >
           <Plus size={22} />
         </button>
@@ -79,8 +82,7 @@ export function Savings() {
             } catch (err) {
               setAutoDepositErrors((prev) => ({
                 ...prev,
-                [goal.id]:
-                  err instanceof Error ? err.message : 'Не удалось пополнить',
+                [goal.id]: getErrorMessage(err, t, 'dashboard.autoDepositFailed'),
               }))
             }
           }}
@@ -92,7 +94,7 @@ export function Savings() {
         <div className="savings-summary__hero">
           <Wallet size={28} className="savings-summary__icon" />
           <div>
-            <p className="savings-summary__label">Общий объём накоплений</p>
+            <p className="savings-summary__label">{t('savings.list.totalSaved')}</p>
             <h2 className="savings-summary__amount">
               {formatAmount(stats.totalInSavings, user.currency)}
             </h2>
@@ -103,19 +105,19 @@ export function Savings() {
             <span className="savings-summary__stat-value">
               {savingsStats?.goalsWithTarget ?? 0}
             </span>
-            <span className="savings-summary__stat-label">Целей</span>
+            <span className="savings-summary__stat-label">{t('savings.list.goals')}</span>
           </div>
           <div className="savings-summary__stat">
             <span className="savings-summary__stat-value">
               {formatPercent(savingsStats?.overallProgress ?? 0)}
             </span>
-            <span className="savings-summary__stat-label">Прогресс</span>
+            <span className="savings-summary__stat-label">{t('savings.list.progress')}</span>
           </div>
           <div className="savings-summary__stat">
             <span className="savings-summary__stat-value">
               {savingsStats?.completedGoals ?? 0}
             </span>
-            <span className="savings-summary__stat-label">Достигнуто</span>
+            <span className="savings-summary__stat-label">{t('savings.list.achieved')}</span>
           </div>
         </div>
         {(savingsStats?.overallProgress ?? 0) > 0 && (
@@ -134,23 +136,23 @@ export function Savings() {
             <Search size={18} className="search-bar__icon" />
             <input
               className="search-bar__input"
-              placeholder="Поиск накоплений..."
+              placeholder={t('savings.list.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
           <Select
-            label="Сортировка"
+            label={t('common.sort')}
             value={sortBy}
             onChange={(value) => setSortBy(value as SavingSortOption)}
-            sheetTitle="Сортировка"
+            sheetTitle={t('common.sort')}
             leadingIcon="↕️"
             options={[
-              { value: 'date', label: 'По дате', emoji: '📅' },
-              { value: 'name', label: 'По названию', emoji: '🔤' },
-              { value: 'amount', label: 'По сумме', emoji: '💰' },
-              { value: 'progress', label: 'По прогрессу', emoji: '📈' },
+              { value: 'date', label: t('savings.list.sortByDate'), emoji: '📅' },
+              { value: 'name', label: t('savings.list.sortByName'), emoji: '🔤' },
+              { value: 'amount', label: t('savings.list.sortByAmount'), emoji: '💰' },
+              { value: 'progress', label: t('savings.list.sortByProgress'), emoji: '📈' },
             ]}
           />
         </>
@@ -160,17 +162,19 @@ export function Savings() {
         <Card className="savings-empty">
           <Wallet size={32} className="savings-empty__icon" />
           <h3 className="savings-empty__title">
-            {savingGoals.length === 0 ? 'Создайте первое накопление' : 'Ничего не найдено'}
+            {savingGoals.length === 0
+              ? t('savings.list.createFirstTitle')
+              : t('savings.list.notFoundTitle')}
           </h3>
           <p className="savings-empty__text">
             {savingGoals.length === 0
-              ? 'Откладывайте деньги на цели, не теряя общий капитал'
-              : 'Попробуйте изменить поисковый запрос'}
+              ? t('savings.list.createFirstHint')
+              : t('savings.list.notFoundHint')}
           </p>
           {savingGoals.length === 0 && (
             <Button onClick={() => setShowCreate(true)}>
               <Plus size={18} />
-              Создать накопление
+              {t('savings.list.createButton')}
             </Button>
           )}
         </Card>
