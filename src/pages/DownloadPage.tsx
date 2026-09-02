@@ -92,6 +92,18 @@ export function DownloadPage() {
         ))}
       </div>
 
+      <section className="product-block product-block--note">
+        <div className="product-block__body">
+          <h3>⚠️ Вход с телефона</h3>
+          <p>
+            Сайт и APK не видят PocketBase на вашем компьютере (127.0.0.1). Для входа с телефона
+            нужен сервер PocketBase в интернете (например Fly.io). Пока используйте Spendly на
+            компьютере или настройте сервер — инструкция в файле <code>.env.example</code> в
+            репозитории.
+          </p>
+        </div>
+      </section>
+
       <p className="products-page__footer">
         Уже установили? <Link to="/login">Войти в аккаунт</Link>
       </p>

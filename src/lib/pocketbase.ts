@@ -1,9 +1,18 @@
 import PocketBase from 'pocketbase'
-import { POCKETBASE_URL } from '../constants/app'
+import { getPocketBaseUrl } from './runtimeConfig'
 
-export const pb = new PocketBase(POCKETBASE_URL)
-
+let pb = new PocketBase(getPocketBaseUrl())
 pb.autoCancellation(false)
+
+export function getPb(): PocketBase {
+  return pb
+}
+
+export function initPocketBaseClient(url?: string): PocketBase {
+  pb = new PocketBase((url ?? getPocketBaseUrl()).replace(/\/$/, ''))
+  pb.autoCancellation(false)
+  return pb
+}
 
 export async function refreshAuth(): Promise<boolean> {
   if (!pb.authStore.isValid) return false

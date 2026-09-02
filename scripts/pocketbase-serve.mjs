@@ -1,9 +1,15 @@
 import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
 import { chmod, mkdir, stat } from 'node:fs/promises'
+import { networkInterfaces } from 'node:os'
 import { pipeline } from 'node:stream/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+const POCKETBASE_HOST = process.env.POCKETBASE_HOST?.trim() || '0.0.0.0'
+const POCKETBASE_PORT = process.env.POCKETBASE_PORT?.trim() || '8090'
+const POCKETBASE_HTTP = `http://${POCKETBASE_HOST}:${POCKETBASE_PORT}`
+const POCKETBASE_HEALTH = `http://127.0.0.1:${POCKETBASE_PORT}`
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
@@ -67,7 +73,7 @@ async function downloadBinary() {
 
 async function isPocketBaseRunning() {
   try {
-    const response = await fetch('http://127.0.0.1:8090/api/health', {
+    const response = await fetch(`${POCKETBASE_HEALTH}/api/health`, {
       signal: AbortSignal.timeout(1500),
     })
     return response.ok
@@ -76,12 +82,29 @@ async function isPocketBaseRunning() {
   }
 }
 
+function getLanAddresses() {
+  const addresses = []
+  for (const entries of Object.values(networkInterfaces())) {
+    if (!entries) continue
+    for (const entry of entries) {
+      if (entry.family !== 'IPv4' || entry.internal) continue
+      addresses.push(entry.address)
+    }
+  }
+  return addresses
+}
+
 async function main() {
   await mkdir(dataDir, { recursive: true })
 
   if (await isPocketBaseRunning()) {
-    console.log('PocketBase уже запущен: http://127.0.0.1:8090')
-    console.log('Админка: http://127.0.0.1:8090/_/')
+    console.log(`PocketBase уже запущен: http://127.0.0.1:${POCKETBASE_PORT}`)
+    const lan = getLanAddresses()
+    if (lan.length > 0) {
+      console.log('В локальной сети (только HTTP dev):')
+      for (const ip of lan) console.log(`  http://${ip}:${POCKETBASE_PORT}`)
+    }
+    console.log(`Админка: http://127.0.0.1:${POCKETBASE_PORT}/_/`)
     return
   }
 
@@ -91,13 +114,18 @@ async function main() {
 
   const args = [
     'serve',
-    `--http=127.0.0.1:8090`,
+    `--http=${POCKETBASE_HOST}:${POCKETBASE_PORT}`,
     `--dir=${dataDir}`,
     `--hooksDir=${hooksDir}`,
     `--migrationsDir=${migrationsDir}`,
   ]
 
-  console.log(`Starting PocketBase at http://127.0.0.1:8090`)
+  console.log(`Starting PocketBase at http://127.0.0.1:${POCKETBASE_PORT}`)
+  const lan = getLanAddresses()
+  if (lan.length > 0) {
+    console.log('Доступ в локальной Wi‑Fi сети:')
+    for (const ip of lan) console.log(`  http://${ip}:${POCKETBASE_PORT}`)
+  }
   const child = spawn(binaryPath, args, {
     cwd: root,
     stdio: 'inherit',

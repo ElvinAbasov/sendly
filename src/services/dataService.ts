@@ -1,6 +1,6 @@
 import type { RecordModel } from 'pocketbase'
-import { POCKETBASE_URL } from '../constants/app'
-import { pb, refreshAuth } from '../lib/pocketbase'
+import { getPb, refreshAuth, initPocketBaseClient } from '../lib/pocketbase'
+import { getPocketBaseUrl, isLocalPocketBaseUrl, loadRuntimeConfig } from '../lib/runtimeConfig'
 import type {
   AppSettings,
   ExportData,
@@ -113,10 +113,11 @@ class PocketBaseDataService implements IDataService {
   }
 
   private requireAuthRecord(): RecordModel {
-    if (!pb.authStore.isValid || !pb.authStore.record) {
+    const record = getPb().authStore.record
+    if (!getPb().authStore.isValid || !record) {
       throw new Error('Не авторизован')
     }
-    return pb.authStore.record
+    return record as RecordModel
   }
 
   private requireUserId(): string {
@@ -124,8 +125,9 @@ class PocketBaseDataService implements IDataService {
   }
 
   async getSession(): Promise<Session | null> {
-    if (!pb.authStore.isValid || !pb.authStore.record) return null
-    return { userId: pb.authStore.record.id }
+    const record = getPb().authStore.record
+    if (!getPb().authStore.isValid || !record) return null
+    return { userId: record.id }
   }
 
   async setSession(_userId: string): Promise<void> {
@@ -133,12 +135,13 @@ class PocketBaseDataService implements IDataService {
   }
 
   async clearSession(): Promise<void> {
-    pb.authStore.clear()
+    getPb().authStore.clear()
   }
 
   async getUser(): Promise<User | null> {
-    if (!pb.authStore.isValid || !pb.authStore.record) return null
-    return mapUser(pb.authStore.record)
+    const record = getPb().authStore.record
+    if (!getPb().authStore.isValid || !record) return null
+    return mapUser(record as RecordModel)
   }
 
   async getUserByEmail(_email: string): Promise<User | null> {
@@ -147,13 +150,14 @@ class PocketBaseDataService implements IDataService {
   }
 
   async saveUser(user: User): Promise<void> {
-    await pb.collection('users').update(user.id, {
+    await getPb().collection('users').update(user.id, {
       name: user.name,
       currency: user.currency,
     })
-    if (pb.authStore.record?.id === user.id) {
-      pb.authStore.save(pb.authStore.token, {
-        ...pb.authStore.record,
+    if (getPb().authStore.record?.id === user.id) {
+      const authRecord = getPb().authStore.record as RecordModel
+      getPb().authStore.save(getPb().authStore.token, {
+        ...authRecord,
         name: user.name,
         currency: user.currency,
       })
@@ -170,7 +174,7 @@ class PocketBaseDataService implements IDataService {
     if (!normalizedEmail) throw new AuthError('email', 'Введите email')
 
     try {
-      await pb.collection('users').create({
+      await getPb().collection('users').create({
         email: normalizedEmail,
         password,
         passwordConfirm: password,
@@ -199,15 +203,21 @@ class PocketBaseDataService implements IDataService {
 
     let response: Response
     try {
-      response = await fetch(`${POCKETBASE_URL}/api/spendly/auth/login`, {
+      response = await fetch(`${getPocketBaseUrl()}/api/spendly/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: normalizedEmail, password }),
       })
     } catch {
+      if (isLocalPocketBaseUrl()) {
+        throw new AuthError(
+          'form',
+          'С телефона PocketBase на вашем компьютере недоступен. Нужен сервер в интернете (Fly.io) или откройте Spendly на ПК.',
+        )
+      }
       throw new AuthError(
         'form',
-        'Не удалось подключиться к серверу. Запустите PocketBase (npm run pocketbase:serve).',
+        'Не удалось подключиться к серверу. Проверьте интернет и что PocketBase запущен.',
       )
     }
 
@@ -231,13 +241,13 @@ class PocketBaseDataService implements IDataService {
       )
     }
 
-    pb.authStore.save(payload.token, payload.record)
+    getPb().authStore.save(payload.token, payload.record)
     await this.ensureSettingsRecord(payload.record.id)
     return mapUser(payload.record)
   }
 
   async logout(): Promise<void> {
-    pb.authStore.clear()
+    getPb().authStore.clear()
   }
 
   async migrateOrphanData(_userId: string): Promise<void> {
@@ -259,9 +269,9 @@ class PocketBaseDataService implements IDataService {
 
   private async ensureSettingsRecord(userId: string): Promise<void> {
     try {
-      await pb.collection('user_settings').getFirstListItem(ownerFilter(userId))
+      await getPb().collection('user_settings').getFirstListItem(ownerFilter(userId))
     } catch {
-      await pb.collection('user_settings').create({
+      await getPb().collection('user_settings').create({
         owner: userId,
         theme: 'dark',
         customCategories: { expense: [], income: [] },
@@ -272,7 +282,7 @@ class PocketBaseDataService implements IDataService {
 
   private async getSettingsRecord(userId: string): Promise<RecordModel | null> {
     try {
-      return await pb.collection('user_settings').getFirstListItem(ownerFilter(userId))
+      return await getPb().collection('user_settings').getFirstListItem(ownerFilter(userId))
     } catch {
       return null
     }
@@ -280,7 +290,7 @@ class PocketBaseDataService implements IDataService {
 
   async getPeriods(): Promise<Period[]> {
     const userId = this.requireUserId()
-    const result = await pb.collection('periods').getFullList({
+    const result = await getPb().collection('periods').getFullList({
       filter: ownerFilter(userId),
       sort: '-startDate',
     })
@@ -289,7 +299,7 @@ class PocketBaseDataService implements IDataService {
 
   async getActivePeriod(): Promise<Period | null> {
     const userId = this.requireUserId()
-    const active = await pb.collection('periods').getFullList({
+    const active = await getPb().collection('periods').getFullList({
       filter: activePeriodFilter(userId),
       sort: '-startDate',
     })
@@ -302,14 +312,14 @@ class PocketBaseDataService implements IDataService {
     const now = new Date().toISOString()
     await Promise.all(
       extras.map((period) =>
-        pb.collection('periods').update(period.id, { endDate: now }),
+        getPb().collection('periods').update(period.id, { endDate: now }),
       ),
     )
     return mapPeriod(latest, userId)
   }
 
   async savePeriod(period: Period): Promise<void> {
-    await pb.collection('periods').update(period.id, {
+    await getPb().collection('periods').update(period.id, {
       name: period.name,
       startDate: period.startDate,
       endDate: period.endDate ?? '',
@@ -318,7 +328,7 @@ class PocketBaseDataService implements IDataService {
   }
 
   async closePeriod(periodId: string): Promise<void> {
-    await pb.collection('periods').update(periodId, {
+    await getPb().collection('periods').update(periodId, {
       endDate: new Date().toISOString(),
     })
   }
@@ -328,7 +338,7 @@ class PocketBaseDataService implements IDataService {
     const filter = periodId
       ? periodTransactionsFilter(userId, periodId)
       : ownerFilter(userId)
-    const result = await pb.collection('transactions').getFullList({
+    const result = await getPb().collection('transactions').getFullList({
       filter,
       sort: '-date',
     })
@@ -340,24 +350,24 @@ class PocketBaseDataService implements IDataService {
       if (isSavingTransaction(transaction.type)) {
         throw new Error('Операции накоплений нельзя редактировать напрямую')
       }
-      await pb.collection('transactions').update(transaction.id, transactionToRecord(transaction))
+      await getPb().collection('transactions').update(transaction.id, transactionToRecord(transaction))
     })
   }
 
   async deleteTransaction(id: string): Promise<void> {
     return this.withMutex(async () => {
       const userId = this.requireUserId()
-      const record = await pb.collection('transactions').getOne(id)
+      const record = await getPb().collection('transactions').getOne(id)
       if (String(record.owner) !== userId) throw new Error('Операция не найдена')
       if (isSavingTransaction(record.type as Transaction['type'])) {
         throw new Error('Операции накоплений нельзя удалить. Используйте снятие из накопления.')
       }
-      await pb.collection('transactions').delete(id)
+      await getPb().collection('transactions').delete(id)
     })
   }
 
   private async getRawSavingGoals(userId: string): Promise<SavingGoal[]> {
-    const result = await pb.collection('savings').getFullList({
+    const result = await getPb().collection('savings').getFullList({
       filter: ownerFilter(userId),
       sort: '-id',
     })
@@ -380,7 +390,7 @@ class PocketBaseDataService implements IDataService {
             raw.isCompleted !== goal.isCompleted ||
             raw.completedAt !== goal.completedAt)
         ) {
-          await pb.collection('savings').update(goal.id, savingToRecord(goal))
+          await getPb().collection('savings').update(goal.id, savingToRecord(goal))
         }
       }),
     )
@@ -404,11 +414,11 @@ class PocketBaseDataService implements IDataService {
   }
 
   async saveSavingGoal(goal: SavingGoal): Promise<void> {
-    await pb.collection('savings').update(goal.id, savingToRecord(goal))
+    await getPb().collection('savings').update(goal.id, savingToRecord(goal))
   }
 
   async deleteSavingGoal(id: string): Promise<void> {
-    await pb.collection('savings').delete(id)
+    await getPb().collection('savings').delete(id)
   }
 
   async createSavingGoal(
@@ -418,7 +428,7 @@ class PocketBaseDataService implements IDataService {
     >,
   ): Promise<SavingGoal> {
     const userId = this.requireUserId()
-    const record = await pb.collection('savings').create({
+    const record = await getPb().collection('savings').create({
       owner: userId,
       name: data.name.trim(),
       description: data.description.trim(),
@@ -474,7 +484,7 @@ class PocketBaseDataService implements IDataService {
       updated.completedAt = null
     }
 
-    const record = await pb.collection('savings').update(id, savingToRecord(updated))
+    const record = await getPb().collection('savings').update(id, savingToRecord(updated))
     return mapSaving(record, userId)
   }
 
@@ -529,8 +539,8 @@ class PocketBaseDataService implements IDataService {
       balanceAfter: newAmount,
     }
 
-    await pb.collection('transactions').create(transactionToRecord(transaction))
-    const record = await pb.collection('savings').update(savingId, savingToRecord(updated))
+    await getPb().collection('transactions').create(transactionToRecord(transaction))
+    const record = await getPb().collection('savings').update(savingId, savingToRecord(updated))
     return mapSaving(record, userId)
   }
 
@@ -583,8 +593,8 @@ class PocketBaseDataService implements IDataService {
       balanceAfter: newAmount,
     }
 
-    await pb.collection('transactions').create(transactionToRecord(transaction))
-    const record = await pb.collection('savings').update(savingId, savingToRecord(updated))
+    await getPb().collection('transactions').create(transactionToRecord(transaction))
+    const record = await getPb().collection('savings').update(savingId, savingToRecord(updated))
     return mapSaving(record, userId)
   }
 
@@ -637,9 +647,9 @@ class PocketBaseDataService implements IDataService {
         balanceAfter: destNewAmount,
       }
 
-      await pb.collection('transactions').create(transactionToRecord(transaction))
-      await pb.collection('savings').update(sourceId, savingToRecord(updateGoal(source, sourceNewAmount)))
-      await pb.collection('savings').update(
+      await getPb().collection('transactions').create(transactionToRecord(transaction))
+      await getPb().collection('savings').update(sourceId, savingToRecord(updateGoal(source, sourceNewAmount)))
+      await getPb().collection('savings').update(
         destinationId,
         savingToRecord(updateGoal(destination, destNewAmount)),
       )
@@ -657,7 +667,7 @@ class PocketBaseDataService implements IDataService {
         await this.executeWithdrawFromSaving(savingId, goal.currentAmount, periodId)
       }
 
-      await pb.collection('savings').delete(savingId)
+      await getPb().collection('savings').delete(savingId)
     })
   }
 
@@ -669,13 +679,13 @@ class PocketBaseDataService implements IDataService {
 
     const now = new Date()
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    await pb.collection('savings').update(savingId, {
+    await getPb().collection('savings').update(savingId, {
       lastAutoDepositPromptMonth: monthKey,
     })
   }
 
   async getSettings(): Promise<AppSettings> {
-    const userId = pb.authStore.isValid ? pb.authStore.record?.id : null
+    const userId = getPb().authStore.isValid ? getPb().authStore.record?.id : null
     if (!userId) return { theme: 'dark' }
     const record = await this.getSettingsRecord(userId)
     return mapSettings(record)
@@ -691,9 +701,9 @@ class PocketBaseDataService implements IDataService {
     }
 
     if (record) {
-      await pb.collection('user_settings').update(record.id, payload)
+      await getPb().collection('user_settings').update(record.id, payload)
     } else {
-      await pb.collection('user_settings').create({ owner: userId, ...payload })
+      await getPb().collection('user_settings').create({ owner: userId, ...payload })
     }
   }
 
@@ -727,13 +737,13 @@ class PocketBaseDataService implements IDataService {
 
       try {
         await Promise.all([
-          ...existingPeriods.map((item) => pb.collection('periods').delete(item.id)),
-          ...existingTransactions.map((item) => pb.collection('transactions').delete(item.id)),
-          ...existingSavings.map((item) => pb.collection('savings').delete(item.id)),
+          ...existingPeriods.map((item) => getPb().collection('periods').delete(item.id)),
+          ...existingTransactions.map((item) => getPb().collection('transactions').delete(item.id)),
+          ...existingSavings.map((item) => getPb().collection('savings').delete(item.id)),
         ])
 
         for (const period of data.periods) {
-          await pb.collection('periods').create({
+          await getPb().collection('periods').create({
             id: period.id,
             owner: userId,
             name: period.name,
@@ -744,14 +754,14 @@ class PocketBaseDataService implements IDataService {
         }
 
         for (const tx of data.transactions) {
-          await pb.collection('transactions').create({
+          await getPb().collection('transactions').create({
             id: tx.id,
             ...transactionToRecord({ ...tx, userId }),
           })
         }
 
         for (const goal of data.savingGoals ?? []) {
-          await pb.collection('savings').create({
+          await getPb().collection('savings').create({
             id: goal.id,
             ...savingToRecord({ ...goal, userId }),
           })
@@ -824,14 +834,14 @@ class PocketBaseDataService implements IDataService {
     ])
 
     await Promise.all([
-      ...periods.map((item) => pb.collection('periods').delete(item.id)),
-      ...transactions.map((item) => pb.collection('transactions').delete(item.id)),
-      ...savings.map((item) => pb.collection('savings').delete(item.id)),
-      settingsRecord ? pb.collection('user_settings').delete(settingsRecord.id) : Promise.resolve(),
+      ...periods.map((item) => getPb().collection('periods').delete(item.id)),
+      ...transactions.map((item) => getPb().collection('transactions').delete(item.id)),
+      ...savings.map((item) => getPb().collection('savings').delete(item.id)),
+      settingsRecord ? getPb().collection('user_settings').delete(settingsRecord.id) : Promise.resolve(),
     ])
 
-    await pb.collection('users').delete(userId)
-    pb.authStore.clear()
+    await getPb().collection('users').delete(userId)
+    getPb().authStore.clear()
   }
 }
 
@@ -842,16 +852,16 @@ export async function createPeriod(
   name: string,
   initialCapital: number,
 ): Promise<Period> {
-  const existing = await pb.collection('periods').getFullList({
+  const existing = await getPb().collection('periods').getFullList({
     filter: activePeriodFilter(userId),
   })
   const now = new Date().toISOString()
 
   await Promise.all(
-    existing.map((period) => pb.collection('periods').update(period.id, { endDate: now })),
+    existing.map((period) => getPb().collection('periods').update(period.id, { endDate: now })),
   )
 
-  const record = await pb.collection('periods').create({
+  const record = await getPb().collection('periods').create({
     owner: userId,
     name,
     startDate: toInputDate(),
@@ -869,7 +879,7 @@ export async function createTransaction(
     throw new Error('Используйте операции накоплений для этого типа транзакции')
   }
 
-  const record = await pb.collection('transactions').create({
+  const record = await getPb().collection('transactions').create({
     owner: data.userId,
     period: data.periodId,
     type: data.type,
@@ -887,5 +897,7 @@ export async function createTransaction(
 }
 
 export async function initDataService(): Promise<void> {
+  await loadRuntimeConfig()
+  initPocketBaseClient()
   await refreshAuth()
 }
