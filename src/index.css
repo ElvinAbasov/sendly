@@ -2885,3 +2885,163 @@ body {
   align-items: center;
   gap: 2px;
 }
+
+/* ── Products / Download page ── */
+
+.products-page {
+  min-height: 100dvh;
+  padding: calc(var(--safe-top) + 24px) 20px calc(var(--safe-bottom) + 32px);
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.products-page__hero {
+  text-align: center;
+  padding-top: 12px;
+}
+
+.products-page__logo {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+}
+
+.products-page__title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.products-page__subtitle {
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+}
+
+.products-page__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.product-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  box-shadow: var(--shadow-md);
+}
+
+.product-card__head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.product-card__emoji {
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.product-card__name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.product-card__desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.product-card__blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.product-block {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.product-block__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.product-block__icon--web {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+}
+
+.product-block__icon--apk {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.product-block__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.product-block__body h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.product-block__body p {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.product-block__link {
+  font-size: 0.8125rem;
+  color: var(--accent-light);
+  text-align: center;
+  text-decoration: none;
+}
+
+.product-block__link:hover {
+  text-decoration: underline;
+}
+
+.products-page__footer {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.products-page__footer a {
+  color: var(--accent-light);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.products-page__footer a:hover {
+  text-decoration: underline;
+}

@@ -12,3 +12,22 @@ export const APP_APK_DOWNLOAD_URL =
 export const APP_GITHUB_URL = 'https://github.com/ElvinAbasov/sendly'
 
 export const APP_APK_RELEASE_URL = 'https://github.com/ElvinAbasov/sendly/releases/tag/apk'
+
+/** Публичная страница скачивания (GitHub Pages). */
+export const APP_DOWNLOAD_PAGE_URL = `${APP_PUBLIC_URL}download`
+
+export interface ProductCard {
+  id: string
+  name: string
+  description: string
+  emoji: string
+}
+
+export const PRODUCTS: ProductCard[] = [
+  {
+    id: 'spendly',
+    name: 'Spendly',
+    description: 'Учёт доходов, расходов и копилок. Простой финансовый помощник.',
+    emoji: '💰',
+  },
+]
