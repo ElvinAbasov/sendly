@@ -1,6 +1,10 @@
 /** Публичный адрес приложения (GitHub Pages). */
 export const APP_PUBLIC_URL = 'https://elvinabasov.github.io/sendly/'
 
+/** PocketBase API (задаётся через VITE_POCKETBASE_URL при сборке). */
+export const POCKETBASE_URL =
+  import.meta.env.VITE_POCKETBASE_URL?.trim() || 'http://127.0.0.1:8090'
+
 /** APK для Android (GitHub Releases). Обновляется автоматически после сборки в Actions. */
 export const APP_APK_DOWNLOAD_URL =
   'https://github.com/ElvinAbasov/sendly/releases/download/apk/Spendly.apk'

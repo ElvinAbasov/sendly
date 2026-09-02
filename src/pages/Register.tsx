@@ -7,6 +7,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { CURRENCIES } from '../constants/categories'
 import { normalizeEmail, validateEmail, validatePassword } from '../utils/auth'
+import { isAuthError } from '../utils/authErrors'
 
 export function Register() {
   const { register } = useApp()
@@ -40,7 +41,13 @@ export function Register() {
       await register(normalizedEmail, password, name.trim(), currency)
       setErrors({})
     } catch (err) {
-      setErrors({ form: err instanceof Error ? err.message : 'Ошибка регистрации' })
+      if (isAuthError(err)) {
+        if (err.field === 'email') setErrors({ email: err.message, form: err.message })
+        else if (err.field === 'password') setErrors({ password: err.message, form: err.message })
+        else setErrors({ form: err.message })
+      } else {
+        setErrors({ form: err instanceof Error ? err.message : 'Ошибка регистрации' })
+      }
     } finally {
       setLoading(false)
     }
@@ -57,7 +64,9 @@ export function Register() {
         </>
       }
     >
-      {errors.form && <span className="input-group__error auth-form__error">{errors.form}</span>}
+      {errors.form && !errors.email && !errors.password && !errors.name && (
+        <span className="input-group__error auth-form__error">{errors.form}</span>
+      )}
 
       <Input
         label="Ваше имя"
@@ -95,7 +104,7 @@ export function Register() {
           setPassword(e.target.value)
           if (errors.password || errors.form) setErrors({})
         }}
-        placeholder="Минимум 6 символов"
+        placeholder="Минимум 8 символов"
         error={errors.password}
       />
       <PasswordInput

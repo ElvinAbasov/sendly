@@ -5,6 +5,7 @@ import { PasswordInput } from '../components/auth/PasswordInput'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { normalizeEmail, validateEmail } from '../utils/auth'
+import { isAuthError } from '../utils/authErrors'
 
 export function Login() {
   const { login } = useApp()
@@ -31,7 +32,19 @@ export function Login() {
       await login(normalizedEmail, password)
       setErrors({})
     } catch (err) {
-      setErrors({ form: err instanceof Error ? err.message : 'Ошибка входа' })
+      if (isAuthError(err)) {
+        if (err.field === 'both') {
+          setErrors({ email: err.message, password: err.message, form: err.message })
+        } else if (err.field === 'email') {
+          setErrors({ email: err.message, form: err.message })
+        } else if (err.field === 'password') {
+          setErrors({ password: err.message, form: err.message })
+        } else {
+          setErrors({ form: err.message })
+        }
+      } else {
+        setErrors({ form: err instanceof Error ? err.message : 'Ошибка входа' })
+      }
     } finally {
       setLoading(false)
     }
@@ -48,7 +61,9 @@ export function Login() {
         </>
       }
     >
-      {errors.form && <span className="input-group__error auth-form__error">{errors.form}</span>}
+      {errors.form && !errors.email && !errors.password && (
+        <span className="input-group__error auth-form__error">{errors.form}</span>
+      )}
 
       <Input
         label="Email"
@@ -75,7 +90,7 @@ export function Login() {
           setPassword(e.target.value)
           if (errors.password || errors.form) setErrors({})
         }}
-        placeholder="••••••"
+        placeholder="••••••••"
         error={errors.password}
       />
       <Button fullWidth size="lg" type="submit" loading={loading}>

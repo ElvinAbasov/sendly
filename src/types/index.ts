@@ -1,7 +1,6 @@
 export interface User {
   id: string
   email: string
-  passwordHash: string
   name: string
   currency: string
   createdAt: string

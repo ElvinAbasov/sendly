@@ -19,6 +19,7 @@ import {
   dataService,
   createPeriod,
   createTransaction,
+  initDataService,
 } from '../services/dataService'
 import { shouldShowAutoDepositPrompt } from '../utils/savings'
 import { applySystemUi } from '../utils/systemUi'
@@ -260,6 +261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const init = useCallback(async () => {
     setLoading(true)
     try {
+      await initDataService()
       await refresh()
     } catch (err) {
       console.error('Init error:', err)

@@ -11,6 +11,14 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+
+pocketbase/pb_data
+pocketbase/pocketbase
+pocketbase/pocketbase.exe
+pocketbase/pocketbase.zip
 
 # Capacitor / Android
 android/.gradle

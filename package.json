@@ -11,7 +11,9 @@
     "icons": "node scripts/generate-icons.mjs",
     "cap:sync": "npm run build && npx cap sync android",
     "android": "npm run cap:sync && npx cap open android",
-    "android:run": "npm run cap:sync && npx cap run android"
+    "android:run": "npm run cap:sync && npx cap run android",
+    "pocketbase": "docker compose up -d pocketbase",
+    "pocketbase:serve": "node scripts/pocketbase-serve.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
@@ -20,6 +22,7 @@
     "@capacitor/status-bar": "^8.0.3",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.38.0",
+    "pocketbase": "^0.28.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",

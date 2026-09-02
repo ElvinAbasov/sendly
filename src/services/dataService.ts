@@ -1,4 +1,6 @@
-import { db, STORES } from '../db'
+import type { RecordModel } from 'pocketbase'
+import { POCKETBASE_URL } from '../constants/app'
+import { pb, refreshAuth } from '../lib/pocketbase'
 import type {
   AppSettings,
   ExportData,
@@ -8,15 +10,25 @@ import type {
   Transaction,
   User,
 } from '../types'
-import { hashPassword, isPasswordHash, normalizeEmail, verifyPassword } from '../utils/auth'
-import { generateId } from '../utils/id'
+import { AuthError } from '../utils/authErrors'
+import { normalizeEmail } from '../utils/auth'
 import { toInputDate } from '../utils/format'
+import { generateId } from '../utils/id'
 import { calculatePeriodStats } from '../utils/calculations'
 import {
   calculateLockedSavingsFromTransactions,
   isSavingTransaction,
   recalculateSavingAmounts,
 } from '../utils/savings'
+import {
+  mapPeriod,
+  mapSaving,
+  mapSettings,
+  mapTransaction,
+  mapUser,
+  savingToRecord,
+  transactionToRecord,
+} from './pocketbaseMappers'
 
 export interface IDataService {
   getSession(): Promise<Session | null>
@@ -44,7 +56,10 @@ export interface IDataService {
   saveSavingGoal(goal: SavingGoal): Promise<void>
   deleteSavingGoal(id: string): Promise<void>
   createSavingGoal(
-    data: Omit<SavingGoal, 'id' | 'userId' | 'currentAmount' | 'createdAt' | 'updatedAt' | 'completedAt' | 'isCompleted'>,
+    data: Omit<
+      SavingGoal,
+      'id' | 'userId' | 'currentAmount' | 'createdAt' | 'updatedAt' | 'completedAt' | 'isCompleted'
+    >,
   ): Promise<SavingGoal>
   updateSavingGoal(
     id: string,
@@ -80,7 +95,7 @@ export interface IDataService {
   migrateOrphanData(userId: string): Promise<void>
 }
 
-class LocalDataService implements IDataService {
+class PocketBaseDataService implements IDataService {
   private operationChain: Promise<unknown> = Promise.resolve()
 
   private withMutex<T>(fn: () => Promise<T>): Promise<T> {
@@ -92,165 +107,52 @@ class LocalDataService implements IDataService {
     return run
   }
 
-  private validateImportPayload(
-    data: ExportData,
-    _userId: string,
-    currentUser: User | null,
-  ): void {
-    if (!data.version || !Array.isArray(data.periods) || !Array.isArray(data.transactions)) {
-      throw new Error('Неверный формат файла')
+  private requireAuthRecord(): RecordModel {
+    if (!pb.authStore.isValid || !pb.authStore.record) {
+      throw new Error('Не авторизован')
     }
-
-    if (data.user?.id && currentUser && data.user.id !== currentUser.id) {
-      throw new Error('Файл принадлежит другому пользователю')
-    }
-
-    const goalIds = new Set((data.savingGoals ?? []).map((g) => g.id))
-    for (const tx of data.transactions) {
-      if (!tx.id || !tx.type || typeof tx.amount !== 'number' || tx.amount < 0) {
-        throw new Error('Некорректные операции в файле')
-      }
-      if (isSavingTransaction(tx.type)) {
-        if (tx.type === 'saving_transfer') {
-          if (!tx.sourceSavingId || !tx.destinationSavingId) {
-            throw new Error('Некорректные переводы между накоплениями в файле')
-          }
-          if (!goalIds.has(tx.sourceSavingId) || !goalIds.has(tx.destinationSavingId)) {
-            throw new Error('Перевод ссылается на отсутствующее накопление')
-          }
-        } else if (tx.savingId && !goalIds.has(tx.savingId)) {
-          throw new Error('Операция накопления ссылается на отсутствующую цель')
-        }
-      }
-    }
-
-    const activePeriods = data.periods.filter((p) => p.endDate === null)
-    if (activePeriods.length > 1) {
-      throw new Error('В файле более одного активного периода')
-    }
-
-    if (data.periods.some((p) => !p.id || !p.name)) {
-      throw new Error('Некорректные периоды в файле')
-    }
+    return pb.authStore.record
   }
 
-  private async atomicWrite(
-    writes: Array<{ store: typeof STORES.transactions | typeof STORES.savings; value: unknown }>,
-  ): Promise<void> {
-    const storeNames = [...new Set(writes.map((w) => w.store))] as Array<
-      typeof STORES.transactions | typeof STORES.savings
-    >
-    await db.runTransactionSync(storeNames, 'readwrite', (stores) => {
-      for (const write of writes) {
-        stores[write.store].put(write.value)
-      }
-    })
-  }
-
-  private async ensureSingleActivePeriod(userId: string): Promise<Period | null> {
-    const periods = await db.getAllByIndex<Period>(STORES.periods, 'userId', userId)
-    const active = periods
-      .filter((p) => p.endDate === null)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-    if (active.length <= 1) return active[0] ?? null
-
-    const [latest, ...extras] = active
-    const now = new Date().toISOString()
-    for (const period of extras) {
-      await db.put(STORES.periods, { ...period, endDate: now })
-    }
-    return latest
-  }
-  private async requireUserId(): Promise<string> {
-    const session = await this.getSession()
-    if (!session) throw new Error('Не авторизован')
-    return session.userId
-  }
-
-  private async getRawSavingGoals(userId: string): Promise<SavingGoal[]> {
-    const goals = await db.getAllByIndex<SavingGoal>(STORES.savings, 'userId', userId)
-    return goals.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
-  }
-
-  private async getSyncedSavingGoals(userId: string): Promise<SavingGoal[]> {
-    const [rawGoals, transactions] = await Promise.all([
-      this.getRawSavingGoals(userId),
-      db.getAllByIndex<Transaction>(STORES.transactions, 'userId', userId),
-    ])
-    const synced = recalculateSavingAmounts(rawGoals, transactions)
-
-    for (const goal of synced) {
-      const raw = rawGoals.find((g) => g.id === goal.id)
-      if (
-        raw &&
-        (raw.currentAmount !== goal.currentAmount ||
-          raw.isCompleted !== goal.isCompleted ||
-          raw.completedAt !== goal.completedAt)
-      ) {
-        await db.put(STORES.savings, goal)
-      }
-    }
-
-    return synced
-  }
-
-  private async getAvailableBalance(periodId: string, userId: string): Promise<number> {
-    const periods = await db.getAllByIndex<Period>(STORES.periods, 'userId', userId)
-    const period = periods.find((p) => p.id === periodId)
-    if (!period) throw new Error('Период не найден')
-
-    const transactions = await db.getAllByIndex<Transaction>(
-      STORES.transactions,
-      'userId',
-      userId,
-    )
-    const totalInSavings = calculateLockedSavingsFromTransactions(transactions)
-    const stats = calculatePeriodStats(period, transactions, [], null)
-    return stats.totalCapital - totalInSavings
+  private requireUserId(): string {
+    return this.requireAuthRecord().id
   }
 
   async getSession(): Promise<Session | null> {
-    const stored = await db.get<{ key: string; value: Session }>(
-      STORES.settings,
-      'session',
-    )
-    return stored?.value ?? null
+    if (!pb.authStore.isValid || !pb.authStore.record) return null
+    return { userId: pb.authStore.record.id }
   }
 
-  async setSession(userId: string): Promise<void> {
-    await db.put(STORES.settings, { key: 'session', value: { userId } })
+  async setSession(_userId: string): Promise<void> {
+    // PocketBase управляет сессией через authStore
   }
 
   async clearSession(): Promise<void> {
-    await db.delete(STORES.settings, 'session')
+    pb.authStore.clear()
   }
 
   async getUser(): Promise<User | null> {
-    const session = await this.getSession()
-    if (!session) return null
-    return (await db.get<User>(STORES.users, session.userId)) ?? null
+    if (!pb.authStore.isValid || !pb.authStore.record) return null
+    return mapUser(pb.authStore.record)
   }
 
-  async getUserByEmail(email: string): Promise<User | null> {
-    return this.findUserByEmail(email)
-  }
-
-  private async findUserByEmail(email: string): Promise<User | null> {
-    const normalized = normalizeEmail(email)
-    if (!normalized) return null
-
-    const byIndex = await db.getByIndex<User>(STORES.users, 'email', normalized)
-    if (byIndex) return byIndex
-
-    const allUsers = await db.getAll<User>(STORES.users)
-    return allUsers.find((user) => normalizeEmail(user.email) === normalized) ?? null
+  async getUserByEmail(_email: string): Promise<User | null> {
+    // Поиск email доступен только через серверный login endpoint
+    return null
   }
 
   async saveUser(user: User): Promise<void> {
-    await db.put(STORES.users, user)
+    await pb.collection('users').update(user.id, {
+      name: user.name,
+      currency: user.currency,
+    })
+    if (pb.authStore.record?.id === user.id) {
+      pb.authStore.save(pb.authStore.token, {
+        ...pb.authStore.record,
+        name: user.name,
+        currency: user.currency,
+      })
+    }
   }
 
   async registerUser(
@@ -259,139 +161,173 @@ class LocalDataService implements IDataService {
     name: string,
     currency: string,
   ): Promise<User> {
-    return this.withMutex(async () => {
-      const normalizedEmail = normalizeEmail(email)
-      if (!normalizedEmail) throw new Error('Введите email')
+    const normalizedEmail = normalizeEmail(email)
+    if (!normalizedEmail) throw new AuthError('email', 'Введите email')
 
-      const existing = await this.findUserByEmail(normalizedEmail)
-      if (existing) throw new Error('Пользователь с таким email уже существует')
-
-      const userId = generateId()
-      await this.migrateOrphanData(userId)
-
-      const passwordHash = await hashPassword(password)
-      const user: User = {
-        id: userId,
+    try {
+      await pb.collection('users').create({
         email: normalizedEmail,
-        passwordHash,
+        password,
+        passwordConfirm: password,
         name: name.trim(),
         currency,
-        createdAt: new Date().toISOString(),
-      }
-
-      await db.runTransactionSync([STORES.users, STORES.settings], 'readwrite', (stores) => {
-        stores[STORES.users].put(user)
-        stores[STORES.settings].put({ key: 'session', value: { userId: user.id } })
       })
+    } catch (err) {
+      throw this.mapRegisterError(err)
+    }
 
-      return user
-    })
+    return this.loginUser(normalizedEmail, password)
   }
 
   async loginUser(email: string, password: string): Promise<User> {
-    return this.withMutex(async () => {
-      const normalizedEmail = normalizeEmail(email)
-      if (!normalizedEmail) throw new Error('Неверный email или пароль')
+    const normalizedEmail = normalizeEmail(email)
 
-      const user = await this.findUserByEmail(normalizedEmail)
-      if (!user || !isPasswordHash(user.passwordHash)) {
-        throw new Error('Неверный email или пароль')
+    if (!normalizedEmail && !password) {
+      throw new AuthError('both', 'Введите email и пароль')
+    }
+    if (!normalizedEmail) {
+      throw new AuthError('email', 'Введите email')
+    }
+    if (!password) {
+      throw new AuthError('password', 'Введите пароль')
+    }
+
+    let response: Response
+    try {
+      response = await fetch(`${POCKETBASE_URL}/api/spendly/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail, password }),
+      })
+    } catch {
+      throw new AuthError(
+        'form',
+        'Не удалось подключиться к серверу. Запустите PocketBase (npm run pocketbase:serve).',
+      )
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as {
+      field?: AuthError['field']
+      message?: string
+      token?: string
+      record?: RecordModel
+    }
+
+    if (!response.ok || !payload.token || !payload.record) {
+      if (response.status === 404) {
+        throw new AuthError(
+          'form',
+          'Сервис входа недоступен. Перезапустите PocketBase с поддержкой hooks.',
+        )
       }
+      throw new AuthError(
+        payload.field ?? 'form',
+        payload.message ?? 'Не удалось войти. Проверьте email и пароль.',
+      )
+    }
 
-      const valid = await verifyPassword(password, user.passwordHash)
-      if (!valid) throw new Error('Неверный email или пароль')
-
-      await this.setSession(user.id)
-      return user
-    })
+    pb.authStore.save(payload.token, payload.record)
+    await this.ensureSettingsRecord(payload.record.id)
+    return mapUser(payload.record)
   }
 
   async logout(): Promise<void> {
-    await this.clearSession()
+    pb.authStore.clear()
   }
 
-  async migrateOrphanData(userId: string): Promise<void> {
-    const allPeriods = await db.getAll<Period>(STORES.periods)
-    for (const period of allPeriods) {
-      if (period.userId && period.userId !== userId) {
-        throw new Error('Локальные данные принадлежат другому пользователю')
+  async migrateOrphanData(_userId: string): Promise<void> {
+    // Данные хранятся в PocketBase, локальная миграция не нужна
+  }
+
+  private mapRegisterError(err: unknown): AuthError {
+    if (err && typeof err === 'object' && 'data' in err) {
+      const data = (err as { data?: { data?: Record<string, { message?: string }> } }).data?.data
+      if (data?.email?.message?.includes('unique') || data?.email?.message?.includes('exists')) {
+        return new AuthError('email', 'Пользователь с таким email уже существует')
+      }
+      if (data?.password?.message) {
+        return new AuthError('password', data.password.message)
       }
     }
+    return new AuthError('form', 'Не удалось создать аккаунт')
+  }
 
-    const allTransactions = await db.getAll<Transaction>(STORES.transactions)
-    for (const tx of allTransactions) {
-      if (tx.userId && tx.userId !== userId) {
-        throw new Error('Локальные данные принадлежат другому пользователю')
-      }
+  private async ensureSettingsRecord(userId: string): Promise<void> {
+    try {
+      await pb.collection('user_settings').getFirstListItem(`user = "${userId}"`)
+    } catch {
+      await pb.collection('user_settings').create({
+        user: userId,
+        theme: 'dark',
+        customCategories: { expense: [], income: [] },
+        customCategoryIcons: {},
+      })
     }
+  }
 
-    const allSavings = await db.getAll<SavingGoal>(STORES.savings)
-    for (const goal of allSavings) {
-      if (goal.userId && goal.userId !== userId) {
-        throw new Error('Локальные данные принадлежат другому пользователю')
-      }
-    }
-
-    for (const period of allPeriods) {
-      if (!period.userId) {
-        await db.put(STORES.periods, { ...period, userId })
-      }
-    }
-
-    for (const tx of allTransactions) {
-      if (!tx.userId) {
-        await db.put(STORES.transactions, { ...tx, userId })
-      }
-    }
-
-    for (const goal of allSavings) {
-      if (!goal.userId) {
-        await db.put(STORES.savings, { ...goal, userId })
-      }
+  private async getSettingsRecord(userId: string): Promise<RecordModel | null> {
+    try {
+      return await pb.collection('user_settings').getFirstListItem(`user = "${userId}"`)
+    } catch {
+      return null
     }
   }
 
   async getPeriods(): Promise<Period[]> {
-    const userId = await this.requireUserId()
-    const periods = await db.getAllByIndex<Period>(STORES.periods, 'userId', userId)
-    return periods.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
+    const userId = this.requireUserId()
+    const result = await pb.collection('periods').getFullList({
+      filter: `user = "${userId}"`,
+      sort: '-created',
+    })
+    return result.map((record) => mapPeriod(record, userId))
   }
 
   async getActivePeriod(): Promise<Period | null> {
-    const userId = await this.requireUserId()
-    return this.ensureSingleActivePeriod(userId)
+    const userId = this.requireUserId()
+    const active = await pb.collection('periods').getFullList({
+      filter: `user = "${userId}" && (endDate = "" || endDate = null)`,
+      sort: '-created',
+    })
+
+    if (active.length <= 1) {
+      return active[0] ? mapPeriod(active[0], userId) : null
+    }
+
+    const [latest, ...extras] = active
+    const now = new Date().toISOString()
+    await Promise.all(
+      extras.map((period) =>
+        pb.collection('periods').update(period.id, { endDate: now }),
+      ),
+    )
+    return mapPeriod(latest, userId)
   }
 
   async savePeriod(period: Period): Promise<void> {
-    await db.put(STORES.periods, period)
+    await pb.collection('periods').update(period.id, {
+      name: period.name,
+      startDate: period.startDate,
+      endDate: period.endDate ?? '',
+      initialCapital: period.initialCapital,
+    })
   }
 
   async closePeriod(periodId: string): Promise<void> {
-    const userId = await this.requireUserId()
-    const periods = await db.getAllByIndex<Period>(STORES.periods, 'userId', userId)
-    const period = periods.find((p) => p.id === periodId)
-    if (!period) throw new Error('Период не найден')
-    await db.put(STORES.periods, {
-      ...period,
+    await pb.collection('periods').update(periodId, {
       endDate: new Date().toISOString(),
     })
   }
 
   async getTransactions(periodId?: string): Promise<Transaction[]> {
-    const userId = await this.requireUserId()
-    const transactions = await db.getAllByIndex<Transaction>(
-      STORES.transactions,
-      'userId',
-      userId,
-    )
-    const filtered = periodId
-      ? transactions.filter((t) => t.periodId === periodId)
-      : transactions
-    return filtered.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-    )
+    const userId = this.requireUserId()
+    const filter = periodId
+      ? `user = "${userId}" && period = "${periodId}"`
+      : `user = "${userId}"`
+    const result = await pb.collection('transactions').getFullList({
+      filter,
+      sort: '-date,-created',
+    })
+    return result.map((record) => mapTransaction(record, userId))
   }
 
   async saveTransaction(transaction: Transaction): Promise<void> {
@@ -399,33 +335,75 @@ class LocalDataService implements IDataService {
       if (isSavingTransaction(transaction.type)) {
         throw new Error('Операции накоплений нельзя редактировать напрямую')
       }
-      await db.put(STORES.transactions, transaction)
+      await pb.collection('transactions').update(transaction.id, transactionToRecord(transaction))
     })
   }
 
   async deleteTransaction(id: string): Promise<void> {
     return this.withMutex(async () => {
-      const userId = await this.requireUserId()
-      const tx = await db.get<Transaction>(STORES.transactions, id)
-      if (!tx || tx.userId !== userId) throw new Error('Операция не найдена')
-      if (isSavingTransaction(tx.type)) {
+      const userId = this.requireUserId()
+      const record = await pb.collection('transactions').getOne(id)
+      if (String(record.user) !== userId) throw new Error('Операция не найдена')
+      if (isSavingTransaction(record.type as Transaction['type'])) {
         throw new Error('Операции накоплений нельзя удалить. Используйте снятие из накопления.')
       }
-      await db.delete(STORES.transactions, id)
+      await pb.collection('transactions').delete(id)
     })
   }
 
+  private async getRawSavingGoals(userId: string): Promise<SavingGoal[]> {
+    const result = await pb.collection('savings').getFullList({
+      filter: `user = "${userId}"`,
+      sort: '-created',
+    })
+    return result.map((record) => mapSaving(record, userId))
+  }
+
+  private async getSyncedSavingGoals(userId: string): Promise<SavingGoal[]> {
+    const [rawGoals, transactions] = await Promise.all([
+      this.getRawSavingGoals(userId),
+      this.getTransactions(),
+    ])
+    const synced = recalculateSavingAmounts(rawGoals, transactions)
+
+    await Promise.all(
+      synced.map(async (goal) => {
+        const raw = rawGoals.find((item) => item.id === goal.id)
+        if (
+          raw &&
+          (raw.currentAmount !== goal.currentAmount ||
+            raw.isCompleted !== goal.isCompleted ||
+            raw.completedAt !== goal.completedAt)
+        ) {
+          await pb.collection('savings').update(goal.id, savingToRecord(goal))
+        }
+      }),
+    )
+
+    return synced
+  }
+
+  private async getAvailableBalance(periodId: string): Promise<number> {
+    const periods = await this.getPeriods()
+    const period = periods.find((item) => item.id === periodId)
+    if (!period) throw new Error('Период не найден')
+
+    const transactions = await this.getTransactions()
+    const totalInSavings = calculateLockedSavingsFromTransactions(transactions)
+    const stats = calculatePeriodStats(period, transactions, [], null)
+    return stats.totalCapital - totalInSavings
+  }
+
   async getSavingGoals(): Promise<SavingGoal[]> {
-    const userId = await this.requireUserId()
-    return this.getSyncedSavingGoals(userId)
+    return this.getSyncedSavingGoals(this.requireUserId())
   }
 
   async saveSavingGoal(goal: SavingGoal): Promise<void> {
-    await db.put(STORES.savings, goal)
+    await pb.collection('savings').update(goal.id, savingToRecord(goal))
   }
 
   async deleteSavingGoal(id: string): Promise<void> {
-    await db.delete(STORES.savings, id)
+    await pb.collection('savings').delete(id)
   }
 
   async createSavingGoal(
@@ -434,27 +412,22 @@ class LocalDataService implements IDataService {
       'id' | 'userId' | 'currentAmount' | 'createdAt' | 'updatedAt' | 'completedAt' | 'isCompleted'
     >,
   ): Promise<SavingGoal> {
-    const userId = await this.requireUserId()
-    const now = new Date().toISOString()
-    const goal: SavingGoal = {
-      id: generateId(),
-      userId,
+    const userId = this.requireUserId()
+    const record = await pb.collection('savings').create({
+      user: userId,
       name: data.name.trim(),
       description: data.description.trim(),
       icon: data.icon,
       targetAmount: data.targetAmount,
       currentAmount: 0,
-      targetDate: data.targetDate,
-      createdAt: now,
-      updatedAt: now,
-      completedAt: null,
+      targetDate: data.targetDate ?? '',
       isCompleted: false,
+      completedAt: '',
       autoDepositAmount: data.autoDepositAmount ?? null,
       autoDepositDay: data.autoDepositDay ?? null,
-      lastAutoDepositPromptMonth: null,
-    }
-    await db.put(STORES.savings, goal)
-    return goal
+      lastAutoDepositPromptMonth: '',
+    })
+    return mapSaving(record, userId)
   }
 
   async updateSavingGoal(
@@ -473,9 +446,9 @@ class LocalDataService implements IDataService {
       >
     >,
   ): Promise<SavingGoal> {
-    const userId = await this.requireUserId()
+    const userId = this.requireUserId()
     const goals = await this.getSyncedSavingGoals(userId)
-    const goal = goals.find((g) => g.id === id)
+    const goal = goals.find((item) => item.id === id)
     if (!goal) throw new Error('Накопление не найдено')
 
     const updated: SavingGoal = {
@@ -496,8 +469,8 @@ class LocalDataService implements IDataService {
       updated.completedAt = null
     }
 
-    await db.put(STORES.savings, updated)
-    return updated
+    const record = await pb.collection('savings').update(id, savingToRecord(updated))
+    return mapSaving(record, userId)
   }
 
   async depositToSaving(
@@ -515,12 +488,12 @@ class LocalDataService implements IDataService {
   ): Promise<SavingGoal> {
     if (amount <= 0) throw new Error('Сумма должна быть больше 0')
 
-    const userId = await this.requireUserId()
+    const userId = this.requireUserId()
     const goals = await this.getSyncedSavingGoals(userId)
-    const goal = goals.find((g) => g.id === savingId)
+    const goal = goals.find((item) => item.id === savingId)
     if (!goal) throw new Error('Накопление не найдено')
 
-    const available = await this.getAvailableBalance(periodId, userId)
+    const available = await this.getAvailableBalance(periodId)
     if (amount > available) throw new Error('Недостаточно доступных средств')
 
     const newAmount = goal.currentAmount + amount
@@ -551,11 +524,9 @@ class LocalDataService implements IDataService {
       balanceAfter: newAmount,
     }
 
-    await this.atomicWrite([
-      { store: STORES.transactions, value: transaction },
-      { store: STORES.savings, value: updated },
-    ])
-    return updated
+    await pb.collection('transactions').create(transactionToRecord(transaction))
+    const record = await pb.collection('savings').update(savingId, savingToRecord(updated))
+    return mapSaving(record, userId)
   }
 
   async withdrawFromSaving(
@@ -573,9 +544,9 @@ class LocalDataService implements IDataService {
   ): Promise<SavingGoal> {
     if (amount <= 0) throw new Error('Сумма должна быть больше 0')
 
-    const userId = await this.requireUserId()
+    const userId = this.requireUserId()
     const goals = await this.getSyncedSavingGoals(userId)
-    const goal = goals.find((g) => g.id === savingId)
+    const goal = goals.find((item) => item.id === savingId)
     if (!goal) throw new Error('Накопление не найдено')
     if (amount > goal.currentAmount) throw new Error('Недостаточно средств в накоплении')
 
@@ -607,11 +578,9 @@ class LocalDataService implements IDataService {
       balanceAfter: newAmount,
     }
 
-    await this.atomicWrite([
-      { store: STORES.transactions, value: transaction },
-      { store: STORES.savings, value: updated },
-    ])
-    return updated
+    await pb.collection('transactions').create(transactionToRecord(transaction))
+    const record = await pb.collection('savings').update(savingId, savingToRecord(updated))
+    return mapSaving(record, userId)
   }
 
   async transferBetweenSavings(
@@ -624,10 +593,10 @@ class LocalDataService implements IDataService {
       if (amount <= 0) throw new Error('Сумма должна быть больше 0')
       if (sourceId === destinationId) throw new Error('Выберите другое накопление')
 
-      const userId = await this.requireUserId()
+      const userId = this.requireUserId()
       const goals = await this.getSyncedSavingGoals(userId)
-      const source = goals.find((g) => g.id === sourceId)
-      const destination = goals.find((g) => g.id === destinationId)
+      const source = goals.find((item) => item.id === sourceId)
+      const destination = goals.find((item) => item.id === destinationId)
       if (!source || !destination) throw new Error('Накопление не найдено')
       if (amount > source.currentAmount) throw new Error('Недостаточно средств в накоплении')
 
@@ -663,54 +632,64 @@ class LocalDataService implements IDataService {
         balanceAfter: destNewAmount,
       }
 
-      await this.atomicWrite([
-        { store: STORES.transactions, value: transaction },
-        { store: STORES.savings, value: updateGoal(source, sourceNewAmount) },
-        { store: STORES.savings, value: updateGoal(destination, destNewAmount) },
-      ])
+      await pb.collection('transactions').create(transactionToRecord(transaction))
+      await pb.collection('savings').update(sourceId, savingToRecord(updateGoal(source, sourceNewAmount)))
+      await pb.collection('savings').update(
+        destinationId,
+        savingToRecord(updateGoal(destination, destNewAmount)),
+      )
     })
   }
 
   async deleteSavingWithReturn(savingId: string, periodId: string): Promise<void> {
     return this.withMutex(async () => {
-      const userId = await this.requireUserId()
+      const userId = this.requireUserId()
       const goals = await this.getSyncedSavingGoals(userId)
-      const goal = goals.find((g) => g.id === savingId)
+      const goal = goals.find((item) => item.id === savingId)
       if (!goal) throw new Error('Накопление не найдено')
 
       if (goal.currentAmount > 0) {
         await this.executeWithdrawFromSaving(savingId, goal.currentAmount, periodId)
       }
 
-      await db.delete(STORES.savings, savingId)
+      await pb.collection('savings').delete(savingId)
     })
   }
 
   async skipAutoDepositPrompt(savingId: string): Promise<void> {
-    const userId = await this.requireUserId()
+    const userId = this.requireUserId()
     const goals = await this.getSyncedSavingGoals(userId)
-    const goal = goals.find((g) => g.id === savingId)
+    const goal = goals.find((item) => item.id === savingId)
     if (!goal) return
 
     const now = new Date()
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    await db.put(STORES.savings, {
-      ...goal,
+    await pb.collection('savings').update(savingId, {
       lastAutoDepositPromptMonth: monthKey,
-      updatedAt: new Date().toISOString(),
     })
   }
 
   async getSettings(): Promise<AppSettings> {
-    const stored = await db.get<{ key: string; value: AppSettings }>(
-      STORES.settings,
-      'app',
-    )
-    return stored?.value ?? { theme: 'dark' }
+    const userId = pb.authStore.isValid ? pb.authStore.record?.id : null
+    if (!userId) return { theme: 'dark' }
+    const record = await this.getSettingsRecord(userId)
+    return mapSettings(record)
   }
 
   async saveSettings(settings: AppSettings): Promise<void> {
-    await db.put(STORES.settings, { key: 'app', value: settings })
+    const userId = this.requireUserId()
+    const record = await this.getSettingsRecord(userId)
+    const payload = {
+      theme: settings.theme,
+      customCategories: settings.customCategories ?? { expense: [], income: [] },
+      customCategoryIcons: settings.customCategoryIcons ?? {},
+    }
+
+    if (record) {
+      await pb.collection('user_settings').update(record.id, payload)
+    } else {
+      await pb.collection('user_settings').create({ user: userId, ...payload })
+    }
   }
 
   async exportData(): Promise<ExportData> {
@@ -720,20 +699,11 @@ class LocalDataService implements IDataService {
       this.getTransactions(),
       this.getSavingGoals(),
     ])
-    const safeUser = user
-      ? {
-          id: user.id,
-          email: user.email,
-          passwordHash: '',
-          name: user.name,
-          currency: user.currency,
-          createdAt: user.createdAt,
-        }
-      : null
+
     return {
       version: 3,
       exportedAt: new Date().toISOString(),
-      user: safeUser,
+      user,
       periods,
       transactions,
       savingGoals,
@@ -742,48 +712,49 @@ class LocalDataService implements IDataService {
 
   async importData(data: ExportData): Promise<void> {
     return this.withMutex(async () => {
-      const userId = await this.requireUserId()
+      const userId = this.requireUserId()
       const currentUser = await this.getUser()
       this.validateImportPayload(data, userId, currentUser)
 
-      const userPeriods = await db.getAllByIndex<Period>(STORES.periods, 'userId', userId)
-      const userTransactions = await db.getAllByIndex<Transaction>(
-        STORES.transactions,
-        'userId',
-        userId,
-      )
-      const userSavings = await db.getAllByIndex<SavingGoal>(STORES.savings, 'userId', userId)
-
-      const backup = {
-        periods: userPeriods,
-        transactions: userTransactions,
-        savings: userSavings,
-      }
+      const existingPeriods = await this.getPeriods()
+      const existingTransactions = await this.getTransactions()
+      const existingSavings = await this.getSavingGoals()
 
       try {
-        for (const period of userPeriods) {
-          await db.delete(STORES.periods, period.id)
-        }
-        for (const tx of userTransactions) {
-          await db.delete(STORES.transactions, tx.id)
-        }
-        for (const goal of userSavings) {
-          await db.delete(STORES.savings, goal.id)
-        }
+        await Promise.all([
+          ...existingPeriods.map((item) => pb.collection('periods').delete(item.id)),
+          ...existingTransactions.map((item) => pb.collection('transactions').delete(item.id)),
+          ...existingSavings.map((item) => pb.collection('savings').delete(item.id)),
+        ])
 
         for (const period of data.periods) {
-          await db.put(STORES.periods, { ...period, userId })
+          await pb.collection('periods').create({
+            id: period.id,
+            user: userId,
+            name: period.name,
+            startDate: period.startDate,
+            endDate: period.endDate ?? '',
+            initialCapital: period.initialCapital,
+          })
         }
+
         for (const tx of data.transactions) {
-          await db.put(STORES.transactions, { ...tx, userId })
+          await pb.collection('transactions').create({
+            id: tx.id,
+            ...transactionToRecord({ ...tx, userId }),
+          })
         }
+
         for (const goal of data.savingGoals ?? []) {
-          await db.put(STORES.savings, { ...goal, userId })
+          await pb.collection('savings').create({
+            id: goal.id,
+            ...savingToRecord({ ...goal, userId }),
+          })
         }
 
         if (data.user?.name || data.user?.currency) {
           if (currentUser) {
-            await db.put(STORES.users, {
+            await this.saveUser({
               ...currentUser,
               name: data.user.name ?? currentUser.name,
               currency: data.user.currency ?? currentUser.currency,
@@ -791,84 +762,125 @@ class LocalDataService implements IDataService {
           }
         }
       } catch (err) {
-        for (const period of backup.periods) {
-          await db.put(STORES.periods, period)
-        }
-        for (const tx of backup.transactions) {
-          await db.put(STORES.transactions, tx)
-        }
-        for (const goal of backup.savings) {
-          await db.put(STORES.savings, goal)
-        }
         throw err instanceof Error ? err : new Error('Ошибка импорта данных')
       }
     })
   }
 
+  private validateImportPayload(
+    data: ExportData,
+    _userId: string,
+    currentUser: User | null,
+  ): void {
+    if (!data.version || !Array.isArray(data.periods) || !Array.isArray(data.transactions)) {
+      throw new Error('Неверный формат файла')
+    }
+
+    if (data.user?.id && currentUser && data.user.id !== currentUser.id) {
+      throw new Error('Файл принадлежит другому пользователю')
+    }
+
+    const goalIds = new Set((data.savingGoals ?? []).map((goal) => goal.id))
+    for (const tx of data.transactions) {
+      if (!tx.id || !tx.type || typeof tx.amount !== 'number' || tx.amount < 0) {
+        throw new Error('Некорректные операции в файле')
+      }
+      if (isSavingTransaction(tx.type)) {
+        if (tx.type === 'saving_transfer') {
+          if (!tx.sourceSavingId || !tx.destinationSavingId) {
+            throw new Error('Некорректные переводы между накоплениями в файле')
+          }
+          if (!goalIds.has(tx.sourceSavingId) || !goalIds.has(tx.destinationSavingId)) {
+            throw new Error('Перевод ссылается на отсутствующее накопление')
+          }
+        } else if (tx.savingId && !goalIds.has(tx.savingId)) {
+          throw new Error('Операция накопления ссылается на отсутствующую цель')
+        }
+      }
+    }
+
+    const activePeriods = data.periods.filter((period) => period.endDate === null)
+    if (activePeriods.length > 1) {
+      throw new Error('В файле более одного активного периода')
+    }
+
+    if (data.periods.some((period) => !period.id || !period.name)) {
+      throw new Error('Некорректные периоды в файле')
+    }
+  }
+
   async clearAllData(): Promise<void> {
-    const userId = await this.requireUserId()
+    const userId = this.requireUserId()
+    const [periods, transactions, savings, settingsRecord] = await Promise.all([
+      this.getPeriods(),
+      this.getTransactions(),
+      this.getSavingGoals(),
+      this.getSettingsRecord(userId),
+    ])
 
-    const userPeriods = await db.getAllByIndex<Period>(STORES.periods, 'userId', userId)
-    const userTransactions = await db.getAllByIndex<Transaction>(
-      STORES.transactions,
-      'userId',
-      userId,
-    )
-    const userSavings = await db.getAllByIndex<SavingGoal>(STORES.savings, 'userId', userId)
+    await Promise.all([
+      ...periods.map((item) => pb.collection('periods').delete(item.id)),
+      ...transactions.map((item) => pb.collection('transactions').delete(item.id)),
+      ...savings.map((item) => pb.collection('savings').delete(item.id)),
+      settingsRecord ? pb.collection('user_settings').delete(settingsRecord.id) : Promise.resolve(),
+    ])
 
-    for (const period of userPeriods) {
-      await db.delete(STORES.periods, period.id)
-    }
-    for (const tx of userTransactions) {
-      await db.delete(STORES.transactions, tx.id)
-    }
-    for (const goal of userSavings) {
-      await db.delete(STORES.savings, goal.id)
-    }
-    await db.delete(STORES.users, userId)
-    await this.clearSession()
+    await pb.collection('users').delete(userId)
+    pb.authStore.clear()
   }
 }
 
-export const dataService: IDataService = new LocalDataService()
+export const dataService: IDataService = new PocketBaseDataService()
 
 export async function createPeriod(
   userId: string,
   name: string,
   initialCapital: number,
 ): Promise<Period> {
-  const existing = await db.getAllByIndex<Period>(STORES.periods, 'userId', userId)
+  const existing = await pb.collection('periods').getFullList({
+    filter: `user = "${userId}" && (endDate = "" || endDate = null)`,
+  })
   const now = new Date().toISOString()
-  for (const period of existing) {
-    if (period.endDate === null) {
-      await db.put(STORES.periods, { ...period, endDate: now })
-    }
-  }
 
-  const period: Period = {
-    id: generateId(),
-    userId,
+  await Promise.all(
+    existing.map((period) => pb.collection('periods').update(period.id, { endDate: now })),
+  )
+
+  const record = await pb.collection('periods').create({
+    user: userId,
     name,
     startDate: toInputDate(),
-    endDate: null,
+    endDate: '',
     initialCapital,
-    createdAt: new Date().toISOString(),
-  }
-  await dataService.savePeriod(period)
-  return period
+  })
+
+  return mapPeriod(record, userId)
 }
 
 export async function createTransaction(
   data: Omit<Transaction, 'id' | 'createdAt'>,
 ): Promise<Transaction> {
-  const transaction: Transaction = {
-    ...data,
-    id: generateId(),
-    createdAt: new Date().toISOString(),
-  }
-  if (isSavingTransaction(transaction.type)) {
+  if (isSavingTransaction(data.type)) {
     throw new Error('Используйте операции накоплений для этого типа транзакции')
   }
-  await dataService.saveTransaction(transaction)
-  return transaction
+
+  const record = await pb.collection('transactions').create({
+    user: data.userId,
+    period: data.periodId,
+    type: data.type,
+    amount: data.amount,
+    category: data.category,
+    title: data.title,
+    note: data.note,
+    date: data.date,
+    savingId: data.savingId ?? '',
+    sourceSavingId: data.sourceSavingId ?? '',
+    destinationSavingId: data.destinationSavingId ?? '',
+    balanceAfter: data.balanceAfter ?? null,
+  })
+  return mapTransaction(record, data.userId)
+}
+
+export async function initDataService(): Promise<void> {
+  await refreshAuth()
 }
