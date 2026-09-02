@@ -12,6 +12,11 @@ import type {
 } from '../types'
 import { AuthError } from '../utils/authErrors'
 import { normalizeEmail } from '../utils/auth'
+import {
+  activePeriodFilter,
+  ownerFilter,
+  periodTransactionsFilter,
+} from '../utils/pocketbaseFilters'
 import { toInputDate } from '../utils/format'
 import { generateId } from '../utils/id'
 import { calculatePeriodStats } from '../utils/calculations'
@@ -254,10 +259,10 @@ class PocketBaseDataService implements IDataService {
 
   private async ensureSettingsRecord(userId: string): Promise<void> {
     try {
-      await pb.collection('user_settings').getFirstListItem(`user = "${userId}"`)
+      await pb.collection('user_settings').getFirstListItem(ownerFilter(userId))
     } catch {
       await pb.collection('user_settings').create({
-        user: userId,
+        owner: userId,
         theme: 'dark',
         customCategories: { expense: [], income: [] },
         customCategoryIcons: {},
@@ -267,7 +272,7 @@ class PocketBaseDataService implements IDataService {
 
   private async getSettingsRecord(userId: string): Promise<RecordModel | null> {
     try {
-      return await pb.collection('user_settings').getFirstListItem(`user = "${userId}"`)
+      return await pb.collection('user_settings').getFirstListItem(ownerFilter(userId))
     } catch {
       return null
     }
@@ -276,7 +281,7 @@ class PocketBaseDataService implements IDataService {
   async getPeriods(): Promise<Period[]> {
     const userId = this.requireUserId()
     const result = await pb.collection('periods').getFullList({
-      filter: `user = "${userId}"`,
+      filter: ownerFilter(userId),
       sort: '-created',
     })
     return result.map((record) => mapPeriod(record, userId))
@@ -285,7 +290,7 @@ class PocketBaseDataService implements IDataService {
   async getActivePeriod(): Promise<Period | null> {
     const userId = this.requireUserId()
     const active = await pb.collection('periods').getFullList({
-      filter: `user = "${userId}" && (endDate = "" || endDate = null)`,
+      filter: activePeriodFilter(userId),
       sort: '-created',
     })
 
@@ -321,11 +326,11 @@ class PocketBaseDataService implements IDataService {
   async getTransactions(periodId?: string): Promise<Transaction[]> {
     const userId = this.requireUserId()
     const filter = periodId
-      ? `user = "${userId}" && period = "${periodId}"`
-      : `user = "${userId}"`
+      ? periodTransactionsFilter(userId, periodId)
+      : ownerFilter(userId)
     const result = await pb.collection('transactions').getFullList({
       filter,
-      sort: '-date,-created',
+      sort: '-created',
     })
     return result.map((record) => mapTransaction(record, userId))
   }
@@ -343,7 +348,7 @@ class PocketBaseDataService implements IDataService {
     return this.withMutex(async () => {
       const userId = this.requireUserId()
       const record = await pb.collection('transactions').getOne(id)
-      if (String(record.user) !== userId) throw new Error('Операция не найдена')
+      if (String(record.owner) !== userId) throw new Error('Операция не найдена')
       if (isSavingTransaction(record.type as Transaction['type'])) {
         throw new Error('Операции накоплений нельзя удалить. Используйте снятие из накопления.')
       }
@@ -353,7 +358,7 @@ class PocketBaseDataService implements IDataService {
 
   private async getRawSavingGoals(userId: string): Promise<SavingGoal[]> {
     const result = await pb.collection('savings').getFullList({
-      filter: `user = "${userId}"`,
+      filter: ownerFilter(userId),
       sort: '-created',
     })
     return result.map((record) => mapSaving(record, userId))
@@ -414,7 +419,7 @@ class PocketBaseDataService implements IDataService {
   ): Promise<SavingGoal> {
     const userId = this.requireUserId()
     const record = await pb.collection('savings').create({
-      user: userId,
+      owner: userId,
       name: data.name.trim(),
       description: data.description.trim(),
       icon: data.icon,
@@ -688,7 +693,7 @@ class PocketBaseDataService implements IDataService {
     if (record) {
       await pb.collection('user_settings').update(record.id, payload)
     } else {
-      await pb.collection('user_settings').create({ user: userId, ...payload })
+      await pb.collection('user_settings').create({ owner: userId, ...payload })
     }
   }
 
@@ -730,7 +735,7 @@ class PocketBaseDataService implements IDataService {
         for (const period of data.periods) {
           await pb.collection('periods').create({
             id: period.id,
-            user: userId,
+            owner: userId,
             name: period.name,
             startDate: period.startDate,
             endDate: period.endDate ?? '',
@@ -838,7 +843,7 @@ export async function createPeriod(
   initialCapital: number,
 ): Promise<Period> {
   const existing = await pb.collection('periods').getFullList({
-    filter: `user = "${userId}" && (endDate = "" || endDate = null)`,
+    filter: activePeriodFilter(userId),
   })
   const now = new Date().toISOString()
 
@@ -847,7 +852,7 @@ export async function createPeriod(
   )
 
   const record = await pb.collection('periods').create({
-    user: userId,
+    owner: userId,
     name,
     startDate: toInputDate(),
     endDate: '',
@@ -865,7 +870,7 @@ export async function createTransaction(
   }
 
   const record = await pb.collection('transactions').create({
-    user: data.userId,
+    owner: data.userId,
     period: data.periodId,
     type: data.type,
     amount: data.amount,

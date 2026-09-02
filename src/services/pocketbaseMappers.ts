@@ -82,7 +82,7 @@ export function mapSettings(record: RecordModel | null): AppSettings {
 
 export function savingToRecord(goal: SavingGoal): Record<string, unknown> {
   return {
-    user: goal.userId,
+    owner: goal.userId,
     name: goal.name,
     description: goal.description,
     icon: goal.icon,
@@ -99,7 +99,7 @@ export function savingToRecord(goal: SavingGoal): Record<string, unknown> {
 
 export function transactionToRecord(tx: Transaction): Record<string, unknown> {
   return {
-    user: tx.userId,
+    owner: tx.userId,
     period: tx.periodId,
     type: tx.type,
     amount: tx.amount,

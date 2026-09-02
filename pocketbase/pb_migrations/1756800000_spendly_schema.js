@@ -48,14 +48,14 @@ migrate(
     app.save(users)
 
     const usersId = users.id
-    const ownerRule = 'user = @request.auth.id'
+    const ownerRule = 'owner = @request.auth.id'
     const authRequired = '@request.auth.id != ""'
 
     const collections = [
       {
         name: 'periods',
         fields: [
-          { name: 'user', type: 'relation', required: true, collectionId: usersId, cascadeDelete: true, maxSelect: 1 },
+          { name: 'owner', type: 'relation', required: true, collectionId: usersId, cascadeDelete: true, maxSelect: 1 },
           { name: 'name', type: 'text', required: true },
           { name: 'startDate', type: 'text', required: true },
           { name: 'endDate', type: 'text' },
@@ -65,7 +65,7 @@ migrate(
       {
         name: 'transactions',
         fields: [
-          { name: 'user', type: 'relation', required: true, collectionId: usersId, cascadeDelete: true, maxSelect: 1 },
+          { name: 'owner', type: 'relation', required: true, collectionId: usersId, cascadeDelete: true, maxSelect: 1 },
           { name: 'period', type: 'relation', required: true, collectionId: '', maxSelect: 1 },
           { name: 'type', type: 'select', required: true, maxSelect: 1, values: ['income', 'expense', 'saving_deposit', 'saving_withdraw', 'saving_transfer'] },
           { name: 'amount', type: 'number', required: true },
@@ -82,7 +82,7 @@ migrate(
       {
         name: 'savings',
         fields: [
-          { name: 'user', type: 'relation', required: true, collectionId: usersId, cascadeDelete: true, maxSelect: 1 },
+          { name: 'owner', type: 'relation', required: true, collectionId: usersId, cascadeDelete: true, maxSelect: 1 },
           { name: 'name', type: 'text', required: true },
           { name: 'description', type: 'text' },
           { name: 'icon', type: 'text', required: true },
@@ -99,7 +99,7 @@ migrate(
       {
         name: 'user_settings',
         fields: [
-          { name: 'user', type: 'relation', required: true, unique: true, collectionId: usersId, cascadeDelete: true, maxSelect: 1 },
+          { name: 'owner', type: 'relation', required: true, unique: true, collectionId: usersId, cascadeDelete: true, maxSelect: 1 },
           { name: 'theme', type: 'select', required: true, maxSelect: 1, values: ['dark', 'light'] },
           { name: 'customCategories', type: 'json' },
           { name: 'customCategoryIcons', type: 'json' },
