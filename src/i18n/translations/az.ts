@@ -125,6 +125,18 @@ export const az = {
       authServiceUnavailable:
         'Giriş xidməti əlçatan deyil. PocketBase-i hooks dəstəyi ilə yenidən başladın.',
     },
+    server: {
+      title: 'Məlumat serveri',
+      urlLabel: 'PocketBase URL',
+      urlPlaceholder: 'https://spendly-pocketbase.fly.dev',
+      save: 'Serveri saxla',
+      saved: 'Server ünvanı saxlanıldı',
+      saveFailed: 'Server ünvanını saxlamaq mümkün olmadı',
+      urlRequired: 'Server ünvanını daxil edin',
+      urlInvalid: 'Düzgün URL daxil edin (https://...)',
+      setupHint:
+        'Telefonda internetdə public PocketBase ünvanı lazımdır. Lokal 127.0.0.1 telefondan əlçatan deyil.',
+    },
   },
 
   onboarding: {

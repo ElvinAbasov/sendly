@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { useApp } from '../context/AppContext'
 import { AuthLink, AuthShell } from '../components/auth/AuthShell'
+import { NativeServerSetup } from '../components/auth/NativeServerSetup'
 import { PasswordInput } from '../components/auth/PasswordInput'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -12,7 +14,7 @@ import { isAuthError } from '../utils/authErrors'
 
 export function Register() {
   const { t } = useI18n()
-  const { register } = useApp()
+  const { register, configureServerUrl } = useApp()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -83,6 +85,10 @@ export function Register() {
         !errors.name &&
         !errors.confirmPassword && (
         <span className="input-group__error auth-form__error">{errors.form}</span>
+      )}
+
+      {Capacitor.isNativePlatform() && (
+        <NativeServerSetup onSave={configureServerUrl} compact />
       )}
 
       <Input

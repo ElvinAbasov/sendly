@@ -125,6 +125,18 @@ export const ru = {
       authServiceUnavailable:
         'Сервис входа недоступен. Перезапустите PocketBase с поддержкой hooks.',
     },
+    server: {
+      title: 'Сервер данных',
+      urlLabel: 'Адрес PocketBase',
+      urlPlaceholder: 'https://spendly-pocketbase.fly.dev',
+      save: 'Сохранить сервер',
+      saved: 'Адрес сервера сохранён',
+      saveFailed: 'Не удалось сохранить адрес сервера',
+      urlRequired: 'Введите адрес сервера',
+      urlInvalid: 'Введите корректный URL (https://...)',
+      setupHint:
+        'На телефоне укажите публичный адрес PocketBase в интернете. Локальный 127.0.0.1 с телефона недоступен.',
+    },
   },
 
   onboarding: {

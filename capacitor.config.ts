@@ -8,6 +8,22 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     cleartext: true,
   },
+  android: {
+    allowMixedContent: true,
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 0,
+      launchAutoHide: false,
+      backgroundColor: '#0f0f14',
+      androidSplashResourceName: 'splash',
+      showSpinner: false,
+    },
+    Keyboard: {
+      resize: 'body',
+      resizeOnFullScreen: true,
+    },
+  },
 }
 
 export default config

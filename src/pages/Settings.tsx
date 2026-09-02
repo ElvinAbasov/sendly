@@ -2,8 +2,10 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Sun, Download, Upload, Trash2, User, Calendar,
-  ChevronRight, AlertTriangle, LogOut, Smartphone, CheckCircle2, Languages,
+  ChevronRight, AlertTriangle, LogOut, Smartphone, CheckCircle2, Languages, Server,
 } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
+import { NativeServerSetup } from '../components/auth/NativeServerSetup'
 import { useApp } from '../context/AppContext'
 import { useAppInstall } from '../hooks/useAppInstall'
 import { Card } from '../components/ui/Card'
@@ -34,6 +36,7 @@ export function Settings() {
     importData,
     clearAllData,
     logout,
+    configureServerUrl,
   } = useApp()
 
   const fileRef = useRef<HTMLInputElement>(null)
@@ -241,6 +244,17 @@ export function Settings() {
           ))}
         </Card>
       </section>
+
+      {Capacitor.isNativePlatform() && (
+        <section className="settings-section">
+          <h3 className="settings-section__title">
+            <Server size={18} /> {t('auth.server.title')}
+          </h3>
+          <Card>
+            <NativeServerSetup onSave={configureServerUrl} />
+          </Card>
+        </section>
+      )}
 
       <section className="settings-section">
         <h3 className="settings-section__title">

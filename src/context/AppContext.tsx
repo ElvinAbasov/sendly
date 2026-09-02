@@ -21,7 +21,10 @@ import {
   createTransaction,
   initDataService,
 } from '../services/dataService'
-import { subscribeAuthStore } from '../lib/pocketbase'
+import { subscribeAuthStore, initPocketBaseClient } from '../lib/pocketbase'
+import { setPocketBaseUrl } from '../lib/runtimeConfig'
+import { setStoredServerUrl } from '../lib/serverConfig'
+import { hideNativeSplash } from '../native/initNativeApp'
 import { mapUser } from '../services/pocketbaseMappers'
 import { shouldShowAutoDepositPrompt } from '../utils/savings'
 import { applySystemUi } from '../utils/systemUi'
@@ -120,6 +123,7 @@ interface AppActions {
   importData: (data: ExportData) => Promise<void>
   clearAllData: () => Promise<void>
   refresh: () => Promise<void>
+  configureServerUrl: (url: string) => Promise<void>
 }
 
 type AppContextType = AppState & AppActions
@@ -277,6 +281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setInitError(key)
     } finally {
       setLoading(false)
+      void hideNativeSplash()
     }
   }, [refresh])
 
@@ -557,6 +562,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSettings({ theme: 'dark' })
   }
 
+  const configureServerUrl = async (url: string) => {
+    const normalized = url.trim().replace(/\/$/, '')
+    await setStoredServerUrl(normalized)
+    setPocketBaseUrl(normalized)
+    initPocketBaseClient(normalized)
+    await init()
+  }
+
   const value: AppContextType = {
     loading,
     initError,
@@ -601,6 +614,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     importData,
     clearAllData,
     refresh,
+    configureServerUrl,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

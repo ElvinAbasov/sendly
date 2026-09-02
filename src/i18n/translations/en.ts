@@ -125,6 +125,18 @@ export const en = {
       authServiceUnavailable:
         'Sign-in service is unavailable. Restart PocketBase with hooks support.',
     },
+    server: {
+      title: 'Data server',
+      urlLabel: 'PocketBase URL',
+      urlPlaceholder: 'https://spendly-pocketbase.fly.dev',
+      save: 'Save server',
+      saved: 'Server URL saved',
+      saveFailed: 'Could not save server URL',
+      urlRequired: 'Enter server URL',
+      urlInvalid: 'Enter a valid URL (https://...)',
+      setupHint:
+        'On your phone, use a public PocketBase URL on the internet. Local 127.0.0.1 is not reachable from the device.',
+    },
   },
 
   onboarding: {

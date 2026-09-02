@@ -12,13 +12,18 @@
     "cap:sync": "npm run build && npx cap sync android",
     "android": "npm run cap:sync && npx cap open android",
     "android:run": "npm run cap:sync && npx cap run android",
+    "android:apk": "node scripts/build-android-apk.mjs",
     "pocketbase": "docker compose up -d pocketbase",
     "pocketbase:serve": "node scripts/pocketbase-serve.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.5.1",
     "@capacitor/core": "^8.5.1",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.38.0",

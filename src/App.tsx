@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { AppProvider, useApp } from './context/AppContext'
@@ -6,6 +7,7 @@ import { useI18n } from './i18n/I18nContext'
 import { Layout } from './components/layout/Layout'
 import { Button } from './components/ui/Button'
 import { AuthBootSplash } from './components/auth/AuthBootSplash'
+import { setupAndroidBackButton } from './native/initNativeApp'
 import { Dashboard } from './pages/Dashboard'
 import { AddTransaction } from './pages/AddTransaction'
 import { History } from './pages/History'
@@ -27,7 +29,18 @@ function GuestRoute({ children }: { children: ReactNode }) {
 
 function AppRoutes() {
   const { t } = useI18n()
+  const navigate = useNavigate()
   const { loading, initError, init, isAuthenticated, activePeriod } = useApp()
+
+  useEffect(() => {
+    return setupAndroidBackButton(() => {
+      if (window.history.length > 1) {
+        navigate(-1)
+        return true
+      }
+      return false
+    })
+  }, [navigate])
 
   if (initError && !loading) {
     return (

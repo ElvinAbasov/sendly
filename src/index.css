@@ -3167,3 +3167,33 @@ body {
 .auth-form .input-group--password input:disabled {
   opacity: 0.7;
 }
+
+.native-server {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.native-server--compact {
+  margin-bottom: 16px;
+}
+
+.native-server__hint {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.native-server__message {
+  font-size: 0.8125rem;
+  color: var(--accent-light);
+}
+
+.platform-native body {
+  overscroll-behavior: none;
+}
