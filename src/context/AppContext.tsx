@@ -21,6 +21,8 @@ import {
   createTransaction,
   initDataService,
 } from '../services/dataService'
+import { subscribeAuthStore } from '../lib/pocketbase'
+import { mapUser } from '../services/pocketbaseMappers'
 import { shouldShowAutoDepositPrompt } from '../utils/savings'
 import { applySystemUi } from '../utils/systemUi'
 import type {
@@ -283,18 +285,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [init])
 
   useEffect(() => {
+    return subscribeAuthStore((token, record) => {
+      if (!token || !record) {
+        setIsAuthenticated(false)
+        setUser(null)
+        return
+      }
+      setIsAuthenticated(true)
+      setUser(mapUser(record))
+    })
+  }, [])
+
+  useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme)
     applySystemUi(settings.theme)
   }, [settings.theme])
 
   const login = async (email: string, password: string) => {
-    const u = await dataService.loginUser(email, password)
-    setUser(u)
-    setIsAuthenticated(true)
+    await dataService.loginUser(email, password)
     try {
       await refresh()
     } catch (err) {
       console.error('Post-login refresh failed:', err)
+      const u = await dataService.getUser()
+      if (u) {
+        setIsAuthenticated(true)
+        setUser(u)
+      } else {
+        throw err
+      }
     }
   }
 
@@ -304,13 +323,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     name: string,
     currency: string,
   ) => {
-    const u = await dataService.registerUser(email, password, name, currency)
-    setUser(u)
-    setIsAuthenticated(true)
+    await dataService.registerUser(email, password, name, currency)
     try {
       await refresh()
     } catch (err) {
       console.error('Post-register refresh failed:', err)
+      const u = await dataService.getUser()
+      if (u) {
+        setIsAuthenticated(true)
+        setUser(u)
+      } else {
+        throw err
+      }
     }
   }
 
@@ -322,6 +346,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActivePeriod(null)
     setAllTransactions([])
     setSavingGoals([])
+    setSettings({ theme: 'dark' })
   }
 
   const setupPeriod = async (name: string, initialCapital: number) => {

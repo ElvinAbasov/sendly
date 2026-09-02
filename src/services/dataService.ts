@@ -10,7 +10,7 @@ import type {
   Transaction,
   User,
 } from '../types'
-import { AuthError } from '../utils/authErrors'
+import { AuthError, isAuthError } from '../utils/authErrors'
 import { normalizeEmail } from '../utils/auth'
 import {
   activePeriodFilter,
@@ -186,10 +186,32 @@ class PocketBaseDataService implements IDataService {
       throw this.mapRegisterError(err)
     }
 
-    return this.loginUser(normalizedEmail, password)
+    return this.authenticateUser(normalizedEmail, password)
   }
 
-  async loginUser(email: string, password: string): Promise<User> {
+  private async authenticateUser(email: string, password: string): Promise<User> {
+    try {
+      return await this.loginViaCustomHook(email, password)
+    } catch (err) {
+      if (isAuthError(err) && err.message === 'auth.errors.authServiceUnavailable') {
+        return this.loginViaPasswordAuth(email, password)
+      }
+      throw err
+    }
+  }
+
+  private async loginViaPasswordAuth(email: string, password: string): Promise<User> {
+    try {
+      const auth = await getPb().collection('users').authWithPassword(email, password)
+      await this.ensureSettingsRecord(auth.record.id)
+      return mapUser(auth.record)
+    } catch (err) {
+      if (err instanceof AuthError) throw err
+      throw new AuthError('form', 'auth.errors.loginFailed')
+    }
+  }
+
+  private async loginViaCustomHook(email: string, password: string): Promise<User> {
     const normalizedEmail = normalizeEmail(email)
 
     if (!normalizedEmail && !password) {
@@ -254,6 +276,22 @@ class PocketBaseDataService implements IDataService {
     getPb().authStore.save(payload.token, payload.record)
     await this.ensureSettingsRecord(payload.record.id)
     return mapUser(payload.record)
+  }
+
+  async loginUser(email: string, password: string): Promise<User> {
+    const normalizedEmail = normalizeEmail(email)
+
+    if (!normalizedEmail && !password) {
+      throw new AuthError('both', 'auth.validation.emailAndPasswordRequired')
+    }
+    if (!normalizedEmail) {
+      throw new AuthError('email', 'auth.validation.emailRequired')
+    }
+    if (!password) {
+      throw new AuthError('password', 'auth.validation.passwordRequired')
+    }
+
+    return this.authenticateUser(normalizedEmail, password)
   }
 
   async logout(): Promise<void> {

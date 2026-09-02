@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { AuthLink, AuthShell } from '../components/auth/AuthShell'
 import { PasswordInput } from '../components/auth/PasswordInput'
@@ -20,8 +20,11 @@ export function Register() {
   const [currency, setCurrency] = useState('AZN')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  const submittingRef = useRef(false)
 
   const handleSubmit = async () => {
+    if (submittingRef.current || loading) return
+
     const normalizedEmail = normalizeEmail(email)
     const newErrors: Record<string, string> = {}
 
@@ -39,6 +42,7 @@ export function Register() {
       return
     }
 
+    submittingRef.current = true
     setLoading(true)
     try {
       await register(normalizedEmail, password, name.trim(), currency)
@@ -55,6 +59,7 @@ export function Register() {
         })
       }
     } finally {
+      submittingRef.current = false
       setLoading(false)
     }
   }
@@ -64,6 +69,7 @@ export function Register() {
       title={t('auth.register.title')}
       hint={t('auth.register.hint')}
       onSubmit={handleSubmit}
+      isSubmitting={loading}
       footer={
         <>
           {t('auth.register.hasAccount')}{' '}
@@ -82,6 +88,7 @@ export function Register() {
       <Input
         label={t('auth.register.nameLabel')}
         autoComplete="name"
+        disabled={loading}
         value={name}
         onChange={(e) => {
           setName(e.target.value)
@@ -98,6 +105,7 @@ export function Register() {
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
+        disabled={loading}
         value={email}
         onChange={(e) => {
           setEmail(e.target.value)
@@ -110,6 +118,7 @@ export function Register() {
       <PasswordInput
         label={t('common.password')}
         autoComplete="new-password"
+        disabled={loading}
         value={password}
         onChange={(e) => {
           setPassword(e.target.value)
@@ -121,6 +130,7 @@ export function Register() {
       <PasswordInput
         label={t('auth.register.confirmPasswordLabel')}
         autoComplete="new-password"
+        disabled={loading}
         value={confirmPassword}
         onChange={(e) => {
           setConfirmPassword(e.target.value)

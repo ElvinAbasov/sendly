@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { AppProvider, useApp } from './context/AppContext'
 import { useI18n } from './i18n/I18nContext'
 import { Layout } from './components/layout/Layout'
 import { Button } from './components/ui/Button'
+import { AuthBootSplash } from './components/auth/AuthBootSplash'
 import { Dashboard } from './pages/Dashboard'
 import { AddTransaction } from './pages/AddTransaction'
 import { History } from './pages/History'
@@ -15,7 +17,13 @@ import { Onboarding } from './pages/Onboarding'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
 import { DownloadPage } from './pages/DownloadPage'
-import { DashboardSkeleton } from './components/ui/Skeleton'
+
+function GuestRoute({ children }: { children: ReactNode }) {
+  const { loading, isAuthenticated } = useApp()
+  if (loading) return <AuthBootSplash />
+  if (isAuthenticated) return <Navigate to="/" replace />
+  return children
+}
 
 function AppRoutes() {
   const { t } = useI18n()
@@ -32,25 +40,32 @@ function AppRoutes() {
     )
   }
 
+  if (loading) {
+    return <AuthBootSplash />
+  }
+
   return (
     <Routes>
       <Route path="/download" element={<DownloadPage />} />
 
-      {loading ? (
-        <Route
-          path="*"
-          element={
-            <div className="layout">
-              <main className="layout__content">
-                <DashboardSkeleton />
-              </main>
-            </div>
-          }
-        />
-      ) : !isAuthenticated ? (
+      {!isAuthenticated ? (
         <>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route
+            path="/login"
+            element={
+              <GuestRoute>
+                <Login />
+              </GuestRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <GuestRoute>
+                <Register />
+              </GuestRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </>
       ) : !activePeriod ? (

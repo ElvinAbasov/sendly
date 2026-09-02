@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { AuthLink, AuthShell } from '../components/auth/AuthShell'
 import { PasswordInput } from '../components/auth/PasswordInput'
@@ -15,8 +15,11 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  const submittingRef = useRef(false)
 
   const handleSubmit = async () => {
+    if (submittingRef.current || loading) return
+
     const normalizedEmail = normalizeEmail(email)
     const newErrors: Record<string, string> = {}
 
@@ -29,6 +32,7 @@ export function Login() {
       return
     }
 
+    submittingRef.current = true
     setLoading(true)
     try {
       await login(normalizedEmail, password)
@@ -51,6 +55,7 @@ export function Login() {
         })
       }
     } finally {
+      submittingRef.current = false
       setLoading(false)
     }
   }
@@ -60,6 +65,7 @@ export function Login() {
       title={t('auth.login.title')}
       hint={t('auth.login.hint')}
       onSubmit={handleSubmit}
+      isSubmitting={loading}
       footer={
         <>
           {t('auth.login.noAccount')}{' '}
@@ -79,6 +85,7 @@ export function Login() {
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
+        disabled={loading}
         value={email}
         onChange={(e) => {
           setEmail(e.target.value)
@@ -91,6 +98,7 @@ export function Login() {
       <PasswordInput
         label={t('common.password')}
         autoComplete="current-password"
+        disabled={loading}
         value={password}
         onChange={(e) => {
           setPassword(e.target.value)

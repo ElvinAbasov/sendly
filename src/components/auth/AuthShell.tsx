@@ -8,10 +8,18 @@ interface AuthShellProps {
   hint: string
   footer: ReactNode
   onSubmit: () => void | Promise<void>
+  isSubmitting?: boolean
   children: ReactNode
 }
 
-export function AuthShell({ title, hint, footer, onSubmit, children }: AuthShellProps) {
+export function AuthShell({
+  title,
+  hint,
+  footer,
+  onSubmit,
+  isSubmitting = false,
+  children,
+}: AuthShellProps) {
   const { t } = useI18n()
 
   return (
@@ -28,6 +36,7 @@ export function AuthShell({ title, hint, footer, onSubmit, children }: AuthShell
         className="onboarding__form auth-form"
         onSubmit={(event) => {
           event.preventDefault()
+          if (isSubmitting) return
           void onSubmit?.()
         }}
       >
