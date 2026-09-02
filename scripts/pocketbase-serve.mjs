@@ -65,8 +65,25 @@ async function downloadBinary() {
   console.log(`PocketBase installed: ${binaryPath}`)
 }
 
+async function isPocketBaseRunning() {
+  try {
+    const response = await fetch('http://127.0.0.1:8090/api/health', {
+      signal: AbortSignal.timeout(1500),
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
 async function main() {
   await mkdir(dataDir, { recursive: true })
+
+  if (await isPocketBaseRunning()) {
+    console.log('PocketBase уже запущен: http://127.0.0.1:8090')
+    console.log('Админка: http://127.0.0.1:8090/_/')
+    return
+  }
 
   if (!(await fileExists(binaryPath))) {
     await downloadBinary()
