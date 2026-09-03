@@ -324,19 +324,6 @@ export const ru = {
       periodNameRequired: 'Введите название периода',
       capitalNegative: 'Капитал не может быть отрицательным',
     },
-    appInstall: {
-      title: 'Приложение',
-      installedTitle: 'Приложение установлено',
-      iosModalTitle: 'Установка на iPhone',
-      iosStep1: 'Откройте Spendly в Safari',
-      iosStep2: 'Нажмите «Поделиться» внизу экрана',
-      iosStep3: 'Выберите «На экран Домой»',
-      iosStep4: 'Нажмите «Добавить»',
-      successMessage: 'Готово! Иконка Spendly появится на главном экране.',
-      apkMessage: 'Откройте скачанный Spendly.apk и нажмите «Установить».',
-      dismissedMessage: 'Нажмите снова или скачайте APK — кнопка повторит загрузку.',
-      androidRetryMessage: 'Откройте Spendly в Chrome на Android и попробуйте снова.',
-    },
     account: {
       title: 'Аккаунт',
       logout: 'Выйти',
@@ -354,35 +341,6 @@ export const ru = {
       clearConfirmWord: 'УДАЛИТЬ',
       clearAllButton: 'Удалить всё',
     },
-  },
-
-  download: {
-    pageTitle: 'Мои приложения',
-    pageSubtitle: 'Скачайте и установите Spendly на телефон',
-    webBlockTitle: 'На телефон через браузер',
-    webBlockText:
-      'Откройте сайт в Chrome на Android. В приложении: Настройки → «Установить Spendly», или добавьте на главный экран через меню браузера.',
-    openApp: 'Открыть Spendly',
-    apkBlockTitle: 'На телефон — APK файл',
-    apkBlockText:
-      'Скачайте Android-приложение. Откройте файл Spendly.apk и подтвердите установку.',
-    downloadApk: 'Скачать APK',
-    githubRelease: 'Страница релиза на GitHub',
-    mobileLoginTitle: 'Вход с телефона',
-    mobileLoginText:
-      'Сайт и APK не видят PocketBase на вашем компьютере (127.0.0.1). Для входа с телефона нужен сервер PocketBase в интернете (например Fly.io). Пока используйте Spendly на компьютере или настройте сервер — инструкция в файле .env.example в репозитории.',
-    footerInstalled: 'Уже установили?',
-    footerLogin: 'Войти в аккаунт',
-  },
-
-  install: {
-    buttonInstalled: 'Приложение установлено',
-    buttonInstall: 'Установить Spendly',
-    hintInstalled: 'Spendly уже добавлен на ваше устройство.',
-    hintPwa: 'Нажмите — появится системное окно установки.',
-    hintAndroidApk: 'Скачается APK. Откройте файл и подтвердите установку.',
-    hintIos: 'Покажем, как добавить на главный экран.',
-    hintOther: 'Откройте Spendly в Chrome на Android для установки.',
   },
 
   errors: {

@@ -326,19 +326,6 @@ export const en = {
       periodNameRequired: 'Enter a period name',
       capitalNegative: 'Capital cannot be negative',
     },
-    appInstall: {
-      title: 'App',
-      installedTitle: 'App installed',
-      iosModalTitle: 'Install on iPhone',
-      iosStep1: 'Open Spendly in Safari',
-      iosStep2: 'Tap Share at the bottom of the screen',
-      iosStep3: 'Choose Add to Home Screen',
-      iosStep4: 'Tap Add',
-      successMessage: 'Done! The Spendly icon will appear on your home screen.',
-      apkMessage: 'Open the downloaded Spendly.apk and tap Install.',
-      dismissedMessage: 'Tap again or download the APK — the button will retry the download.',
-      androidRetryMessage: 'Open Spendly in Chrome on Android and try again.',
-    },
     account: {
       title: 'Account',
       logout: 'Log out',
@@ -356,35 +343,6 @@ export const en = {
       clearConfirmWord: 'DELETE',
       clearAllButton: 'Delete everything',
     },
-  },
-
-  download: {
-    pageTitle: 'My apps',
-    pageSubtitle: 'Download and install Spendly on your phone',
-    webBlockTitle: 'On your phone via browser',
-    webBlockText:
-      'Open the site in Chrome on Android. In the app: Settings → Install Spendly, or add to home screen from the browser menu.',
-    openApp: 'Open Spendly',
-    apkBlockTitle: 'On your phone — APK file',
-    apkBlockText:
-      'Download the Android app. Open Spendly.apk and confirm installation.',
-    downloadApk: 'Download APK',
-    githubRelease: 'Release page on GitHub',
-    mobileLoginTitle: 'Sign in from your phone',
-    mobileLoginText:
-      'The website and APK cannot reach PocketBase on your computer (127.0.0.1). To sign in from your phone, you need PocketBase on the internet (e.g. Fly.io). For now, use Spendly on your computer or set up a server — see .env.example in the repository.',
-    footerInstalled: 'Already installed?',
-    footerLogin: 'Sign in to your account',
-  },
-
-  install: {
-    buttonInstalled: 'App installed',
-    buttonInstall: 'Install Spendly',
-    hintInstalled: 'Spendly is already on your device.',
-    hintPwa: 'Tap to open the system install dialog.',
-    hintAndroidApk: 'APK will download. Open the file and confirm installation.',
-    hintIos: 'We will show how to add it to your home screen.',
-    hintOther: 'Open Spendly in Chrome on Android to install.',
   },
 
   errors: {

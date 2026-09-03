@@ -25,11 +25,41 @@ export function initPocketBaseClient(url?: string): PocketBase {
   return pb
 }
 
+export function isNetworkError(err: unknown): boolean {
+  if (err instanceof ClientResponseError) {
+    return err.status === 0
+  }
+  if (err instanceof TypeError) return true
+  if (err instanceof Error) {
+    return (
+      err.message === 'errors.network.offline' ||
+      err.message === 'errors.network.mobilePocketBase' ||
+      err.message.includes('Failed to fetch') ||
+      err.message.includes('NetworkError') ||
+      err.message.includes('ERR_CONNECTION')
+    )
+  }
+  return false
+}
+
 function isAuthFailure(err: unknown): boolean {
   if (err instanceof ClientResponseError) {
     return err.status === 401 || err.status === 403
   }
   return false
+}
+
+/** Returns false when PocketBase is unreachable. */
+export async function pingPocketBase(): Promise<boolean> {
+  try {
+    const response = await fetch(`${getPocketBaseUrl()}/api/health`, {
+      method: 'GET',
+      cache: 'no-store',
+    })
+    return response.ok
+  } catch {
+    return false
+  }
 }
 
 export async function refreshAuth(): Promise<boolean> {

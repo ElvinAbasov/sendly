@@ -1,5 +1,5 @@
 import type { RecordModel } from 'pocketbase'
-import { getPb, refreshAuth, initPocketBaseClient } from '../lib/pocketbase'
+import { getPb, refreshAuth, initPocketBaseClient, pingPocketBase, isNetworkError } from '../lib/pocketbase'
 import { getPocketBaseUrl, isLocalPocketBaseUrl, loadRuntimeConfig } from '../lib/runtimeConfig'
 import type {
   AppSettings,
@@ -193,8 +193,21 @@ class PocketBaseDataService implements IDataService {
     try {
       return await this.loginViaCustomHook(email, password)
     } catch (err) {
+      // Hook missing → fallback to built-in password auth
       if (isAuthError(err) && err.message === 'auth.errors.authServiceUnavailable') {
         return this.loginViaPasswordAuth(email, password)
+      }
+      // Network to custom route failed → try SDK auth (same host)
+      if (
+        isAuthError(err) &&
+        (err.message === 'auth.errors.networkOffline' ||
+          err.message === 'auth.errors.networkMobile')
+      ) {
+        try {
+          return await this.loginViaPasswordAuth(email, password)
+        } catch {
+          throw err
+        }
       }
       throw err
     }
@@ -207,6 +220,16 @@ class PocketBaseDataService implements IDataService {
       return mapUser(auth.record)
     } catch (err) {
       if (err instanceof AuthError) throw err
+      if (isNetworkError(err)) {
+        throw new AuthError(
+          'form',
+          isLocalPocketBaseUrl() ? 'auth.errors.networkMobile' : 'auth.errors.networkOffline',
+        )
+      }
+      // PocketBase auth-with-password returns 400 for bad credentials
+      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 400) {
+        throw new AuthError('form', 'auth.errors.loginFailed')
+      }
       throw new AuthError('form', 'auth.errors.loginFailed')
     }
   }
@@ -968,5 +991,16 @@ export async function createTransaction(
 export async function initDataService(): Promise<void> {
   await loadRuntimeConfig()
   initPocketBaseClient()
+
+  const reachable = await pingPocketBase()
+  if (!reachable) {
+    // Without a saved session, still show Login/Register.
+    // With a session, the app needs the server to restore data.
+    if (getPb().authStore.isValid) {
+      throw new Error('errors.network.offline')
+    }
+    return
+  }
+
   await refreshAuth()
 }

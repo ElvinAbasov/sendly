@@ -18,7 +18,6 @@ import { SavingDetail } from './pages/SavingDetail'
 import { Onboarding } from './pages/Onboarding'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
-import { DownloadPage } from './pages/DownloadPage'
 
 function GuestRoute({ children }: { children: ReactNode }) {
   const { loading, isAuthenticated } = useApp()
@@ -59,8 +58,6 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/download" element={<DownloadPage />} />
-
       {!isAuthenticated ? (
         <>
           <Route

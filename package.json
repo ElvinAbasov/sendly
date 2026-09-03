@@ -12,7 +12,6 @@
     "cap:sync": "npm run build && npx cap sync android",
     "android": "npm run cap:sync && npx cap open android",
     "android:run": "npm run cap:sync && npx cap run android",
-    "android:apk": "node scripts/build-android-apk.mjs",
     "pocketbase": "docker compose up -d pocketbase",
     "pocketbase:serve": "node scripts/pocketbase-serve.mjs"
   },

@@ -21,7 +21,7 @@ import {
   createTransaction,
   initDataService,
 } from '../services/dataService'
-import { subscribeAuthStore, initPocketBaseClient } from '../lib/pocketbase'
+import { subscribeAuthStore, initPocketBaseClient, isNetworkError } from '../lib/pocketbase'
 import { setPocketBaseUrl } from '../lib/runtimeConfig'
 import { setStoredServerUrl } from '../lib/serverConfig'
 import { hideNativeSplash } from '../native/initNativeApp'
@@ -250,20 +250,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    const [p, ap, txs, goals, s] = await Promise.all([
-      dataService.getPeriods(),
-      dataService.getActivePeriod(),
-      dataService.getTransactions(),
-      dataService.getSavingGoals(),
-      dataService.getSettings(),
-    ])
-    setIsAuthenticated(true)
-    setUser(u)
-    setPeriods(p)
-    setActivePeriod(ap)
-    setAllTransactions(txs)
-    setSavingGoals(goals)
-    setSettings(s)
+    try {
+      const [p, ap, txs, goals, s] = await Promise.all([
+        dataService.getPeriods(),
+        dataService.getActivePeriod(),
+        dataService.getTransactions(),
+        dataService.getSavingGoals(),
+        dataService.getSettings(),
+      ])
+      setIsAuthenticated(true)
+      setUser(u)
+      setPeriods(p)
+      setActivePeriod(ap)
+      setAllTransactions(txs)
+      setSavingGoals(goals)
+      setSettings(s)
+    } catch (err) {
+      if (isNetworkError(err)) {
+        throw new Error('errors.network.offline')
+      }
+      throw err
+    }
   }, [])
 
   const init = useCallback(async () => {
@@ -277,7 +284,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const key =
         err instanceof Error && err.message.startsWith('errors.')
           ? err.message
-          : 'errors.init.failed'
+          : isNetworkError(err)
+            ? 'errors.network.offline'
+            : 'errors.init.failed'
       setInitError(key)
     } finally {
       setLoading(false)
@@ -307,18 +316,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [settings.theme])
 
   const login = async (email: string, password: string) => {
-    await dataService.loginUser(email, password)
+    const u = await dataService.loginUser(email, password)
+    setIsAuthenticated(true)
+    setUser(u)
     try {
       await refresh()
     } catch (err) {
       console.error('Post-login refresh failed:', err)
-      const u = await dataService.getUser()
-      if (u) {
-        setIsAuthenticated(true)
-        setUser(u)
-      } else {
-        throw err
+      // Auth already succeeded — keep user logged in even if data reload fails
+      if (isNetworkError(err) || (err instanceof Error && err.message.startsWith('errors.network.'))) {
+        return
       }
+      // Still authenticated with empty data until next refresh
     }
   }
 
@@ -328,17 +337,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     name: string,
     currency: string,
   ) => {
-    await dataService.registerUser(email, password, name, currency)
+    const u = await dataService.registerUser(email, password, name, currency)
+    setIsAuthenticated(true)
+    setUser(u)
     try {
       await refresh()
     } catch (err) {
       console.error('Post-register refresh failed:', err)
-      const u = await dataService.getUser()
-      if (u) {
-        setIsAuthenticated(true)
-        setUser(u)
-      } else {
-        throw err
+      if (isNetworkError(err) || (err instanceof Error && err.message.startsWith('errors.network.'))) {
+        return
       }
     }
   }

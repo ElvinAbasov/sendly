@@ -326,19 +326,6 @@ export const az = {
       periodNameRequired: 'Dövr adını daxil edin',
       capitalNegative: 'Kapital mənfi ola bilməz',
     },
-    appInstall: {
-      title: 'Tətbiq',
-      installedTitle: 'Tətbiq quraşdırılıb',
-      iosModalTitle: 'iPhone-a quraşdırma',
-      iosStep1: 'Spendly-ni Safari-də açın',
-      iosStep2: 'Ekranın altında «Paylaş» düyməsinə basın',
-      iosStep3: '«Ana ekrana əlavə et» seçin',
-      iosStep4: '«Əlavə et» düyməsinə basın',
-      successMessage: 'Hazırdır! Spendly ikonu ana ekranda görünəcək.',
-      apkMessage: 'Endirilmiş Spendly.apk faylını açın və «Quraşdır» düyməsinə basın.',
-      dismissedMessage: 'Yenidən basın və ya APK endirin — düymə yükləməni təkrarlayacaq.',
-      androidRetryMessage: 'Spendly-ni Android-də Chrome-da açın və yenidən cəhd edin.',
-    },
     account: {
       title: 'Hesab',
       logout: 'Çıxış',
@@ -356,35 +343,6 @@ export const az = {
       clearConfirmWord: 'SİL',
       clearAllButton: 'Hamısını sil',
     },
-  },
-
-  download: {
-    pageTitle: 'Tətbiqlərim',
-    pageSubtitle: 'Spendly-ni telefona endirin və quraşdırın',
-    webBlockTitle: 'Brauzer vasitəsilə telefona',
-    webBlockText:
-      'Saytı Android-də Chrome-da açın. Tətbiqdə: Parametrlər → «Spendly quraşdır», və ya brauzer menyusundan ana ekrana əlavə edin.',
-    openApp: 'Spendly aç',
-    apkBlockTitle: 'Telefona — APK fayl',
-    apkBlockText:
-      'Android tətbiqini endirin. Spendly.apk faylını açın və quraşdırmanı təsdiqləyin.',
-    downloadApk: 'APK endir',
-    githubRelease: 'GitHub-da buraxılış səhifəsi',
-    mobileLoginTitle: 'Telefondan giriş',
-    mobileLoginText:
-      'Sayt və APK kompüterdəki PocketBase-i (127.0.0.1) görmür. Telefondan giriş üçün internetdə PocketBase serveri lazımdır (məs. Fly.io). Hələlik Spendly-ni kompüterdə istifadə edin və ya serveri qurun — təlimat repozitoriyada .env.example faylındadır.',
-    footerInstalled: 'Artıq quraşdırdınız?',
-    footerLogin: 'Hesaba daxil ol',
-  },
-
-  install: {
-    buttonInstalled: 'Tətbiq quraşdırılıb',
-    buttonInstall: 'Spendly quraşdır',
-    hintInstalled: 'Spendly artıq cihazınıza əlavə olunub.',
-    hintPwa: 'Basın — sistem quraşdırma pəncərəsi açılacaq.',
-    hintAndroidApk: 'APK endiriləcək. Faylı açın və quraşdırmanı təsdiqləyin.',
-    hintIos: 'Ana ekrana necə əlavə edəcəyinizi göstərəcəyik.',
-    hintOther: 'Quraşdırmaq üçün Spendly-ni Android-də Chrome-da açın.',
   },
 
   errors: {

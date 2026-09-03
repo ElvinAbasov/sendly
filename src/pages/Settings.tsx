@@ -2,12 +2,11 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Sun, Download, Upload, Trash2, User, Calendar,
-  ChevronRight, AlertTriangle, LogOut, Smartphone, CheckCircle2, Languages, Server,
+  ChevronRight, AlertTriangle, LogOut, CheckCircle2, Languages, Server,
 } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { NativeServerSetup } from '../components/auth/NativeServerSetup'
 import { useApp } from '../context/AppContext'
-import { useAppInstall } from '../hooks/useAppInstall'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -53,17 +52,6 @@ export function Settings() {
   const [periodError, setPeriodError] = useState('')
   const [saving, setSaving] = useState(false)
   const [importError, setImportError] = useState('')
-  const [showIosInstall, setShowIosInstall] = useState(false)
-  const [installMessage, setInstallMessage] = useState('')
-
-  const {
-    showSection: showInstallSection,
-    installed: appInstalled,
-    installing: appInstalling,
-    installApp,
-    buttonLabel,
-    buttonHint,
-  } = useAppInstall()
 
   const handleSaveProfile = async () => {
     if (!name.trim()) return
@@ -146,30 +134,6 @@ export function Settings() {
   const handleLogout = async () => {
     await logout()
     navigate('/login')
-  }
-
-  const handleInstallApp = async () => {
-    setInstallMessage('')
-    const result = await installApp()
-    if (result === 'installed') {
-      setInstallMessage(t('settings.appInstall.successMessage'))
-      return
-    }
-    if (result === 'ios-help') {
-      setShowIosInstall(true)
-      return
-    }
-    if (result === 'apk') {
-      setInstallMessage(t('settings.appInstall.apkMessage'))
-      return
-    }
-    if (result === 'dismissed') {
-      setInstallMessage(t('settings.appInstall.dismissedMessage'))
-      return
-    }
-    if (!appInstalled) {
-      setInstallMessage(t('settings.appInstall.androidRetryMessage'))
-    }
   }
 
   const closedPeriods = periods.filter((p) => p.endDate !== null)
@@ -300,36 +264,6 @@ export function Settings() {
         )}
       </section>
 
-      {showInstallSection && (
-        <section className="settings-section">
-          <h3 className="settings-section__title">
-            <Smartphone size={18} /> {t('settings.appInstall.title')}
-          </h3>
-          <Card>
-            {appInstalled ? (
-              <div className="app-install-status">
-                <CheckCircle2 size={20} className="app-install-status__icon" />
-                <div>
-                  <span className="app-install-status__title">{t('settings.appInstall.installedTitle')}</span>
-                  <span className="app-install-status__hint">{buttonHint}</span>
-                </div>
-              </div>
-            ) : (
-              <>
-                <Button fullWidth onClick={handleInstallApp} loading={appInstalling}>
-                  <Smartphone size={18} />
-                  {buttonLabel}
-                </Button>
-                <p className="settings-install-hint">{buttonHint}</p>
-                {installMessage && (
-                  <p className="settings-install-hint settings-install-hint--info">{installMessage}</p>
-                )}
-              </>
-            )}
-          </Card>
-        </section>
-      )}
-
       <section className="settings-section">
         <h3 className="settings-section__title">{t('settings.account.title')}</h3>
         <Card>
@@ -413,18 +347,6 @@ export function Settings() {
             {t('common.closePeriod')}
           </Button>
         </div>
-      </Modal>
-
-      <Modal open={showIosInstall} onClose={() => setShowIosInstall(false)} title={t('settings.appInstall.iosModalTitle')}>
-        <ol className="install-steps">
-          <li>{t('settings.appInstall.iosStep1')}</li>
-          <li>{t('settings.appInstall.iosStep2')}</li>
-          <li>{t('settings.appInstall.iosStep3')}</li>
-          <li>{t('settings.appInstall.iosStep4')}</li>
-        </ol>
-        <Button fullWidth onClick={() => setShowIosInstall(false)}>
-          {t('common.understood')}
-        </Button>
       </Modal>
 
       <Modal open={showClearData} onClose={() => setShowClearData(false)} title={t('settings.data.clearModalTitle')}>
